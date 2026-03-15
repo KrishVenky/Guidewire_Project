@@ -25,15 +25,7 @@ Most parametric systems use a single trigger — "it rained, here's money." The 
 
 GigShield uses a **Dual-Trigger Parametric Model (DTPM)**:
 
-```
-Trigger fires ONLY when BOTH conditions are met simultaneously:
-
-  [T1] Official disruption signal      AND    [T2] Zone-level order activity drop
-       (Open-Meteo / WAQI / SACHET)                (Platform activity proxy)
-
-       Example: IMD records 65mm/hr              Example: Order assignment rate
-       rainfall in Whitefield zone               drops >60% in same zone/window
-```
+![Dual Trigger Model](docs/assets/gigshield_dual_trigger_model.png)
 
 This eliminates false payouts and makes the model financially viable — a critical differentiator from a real insurance architecture standpoint.
 
@@ -56,52 +48,7 @@ Additionally, thresholds are **not hardcoded**. They are written to a `zone_conf
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      DATA INGESTION LAYER                        │
-│  Open-Meteo (free, no key) │ WAQI API │ SACHET RSS (NDMA)       │
-│  Simulated order-rate microservice │ Bandh signal mock endpoint  │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │
-┌───────────────────────────────▼─────────────────────────────────┐
-│                  ADAPTIVE ML ENGINE (the "dynamic" brain)        │
-│  Zone risk model        │ Threshold adapter   │ Premium ML model │
-│  Rolling 90-day history │ Learns zone         │ XGBoost on       │
-│  auto-recalibrates      │ baseline + seasonal │ tenure, zone,    │
-│  thresholds weekly      │ shift — not static  │ season, history  │
-│                         │                     │                  │
-│  Payout calibrator: loss ratio guard adjusts coverage per zone  │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │
-┌───────────────────────────────▼─────────────────────────────────┐
-│              DUAL TRIGGER ENGINE (deterministic rules)           │
-│  T1 — Environmental signal        AND   T2 — Zone order drop     │
-│  Adaptive threshold met (zone-calibrated)   >60% drop vs 7-day  │
-│  NO ML in this layer — rules only, fully auditable               │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │
-┌───────────────────────────────▼─────────────────────────────────┐
-│                    CORE PLATFORM (FastAPI)                        │
-│  Worker Registry │ Policy Engine │ Premium Calculator            │
-│  Claims Manager  │ Fraud Detection │ Payout Processor            │
-└──────────────┬────────────────────────────┬─────────────────────┘
-               │                            │
-┌──────────────▼──────────┐   ┌─────────────▼────────────────────┐
-│  Supabase (PostgreSQL)   │   │  LLM LAYER (Groq API)            │
-│  Workers │ Policies      │   │  Llama 3.1 8B via Groq           │
-│  Claims  │ Zones         │   │  Hinglish communication          │
-│  Payouts │ Audit log     │   │  Proactive alerts + explanation  │
-│  zone_config (adaptive   │   │  Fallback: templated messages    │
-│  thresholds per zone)    │   │  LLM never makes fin. decisions  │
-└─────────────────────────┘   └──────────────────────────────────┘
-                                │
-┌───────────────────────────────▼─────────────────────────────────┐
-│                         FRONTEND LAYER                           │
-│  Worker: React Native + Expo (PWA in Phase 1, RN in Phase 3)    │
-│  Admin: React web dashboard                                      │
-│  Push notifications: Firebase Cloud Messaging                    │
-└──────────────────────────────────────────────────────────────────┘
-```
+![System Architecture](docs/assets/gigshield_system_architecture_v2.png)
 
 **Critical design principle:** The LLM never makes financial decisions. It only explains decisions already made by the deterministic rules engine — in plain Hinglish to the worker. All payout logic is fully auditable.
 
@@ -177,6 +124,8 @@ For bandh and curfew events that simultaneously affect large numbers of workers,
 ### Post-Payout Trust Feedback Loop
 
 Immediately after every payout, a 3-question in-app survey fires in Hinglish. Responses generate a **zone trust score** per zone per week on the admin dashboard. If a zone's trust score drops — workers got paid but didn't understand why — the LLM explanation template for that zone is automatically flagged for tone revision. This closes a loop no competitor will have: parametric insurance that monitors not just whether payouts fire correctly, but whether workers actually understand and trust them.
+
+![Trust Feedback Loop](docs/assets/gigshield_trust_feedback_loop.png)
 
 ### Worker Trust Tier
 
