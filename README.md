@@ -327,6 +327,36 @@ All payouts are triggered exclusively by verified external disruptions causing l
 
 ---
 
+## Edge Cases and Systemic Risk Boundaries
+
+This section documents known edge cases and our conscious design decisions around them. We are not implementing solutions for all of these — but we want to be transparent about where the product boundaries are and why.
+
+### Single Restaurant Closures
+
+If one restaurant closes due to a broken stove, a kitchen accident, or an LPG supply issue, GigShield does not trigger a payout. This is by design. A single restaurant closing is an operational event internal to that business, not an external systemic disruption. The delivery worker gets reassigned by the platform automatically. More importantly, a single closure does not move the T2 trigger — zone order drop rate won't shift enough to cross the 60% threshold from one restaurant going dark.
+
+However, if an LPG shortage is severe enough to close a significant percentage of restaurants across a zone simultaneously, the T2 trigger fires naturally. The zone order drop rate falls, both triggers align, and GigShield pays out. We do not need a dedicated LPG trigger — the dual-trigger model catches the impact of systemic supply disruptions regardless of root cause by measuring outcomes rather than causes.
+
+### Fraud Prevention on Repeated or Prolonged Disruptions
+
+Each worker's policy enforces a **maximum consecutive trigger cap** — currently set at 4 weeks. If a disruption-level event persists beyond this window, claims move to manual review rather than auto-payout. This prevents exploitation of prolonged low-severity conditions that might technically meet thresholds but represent a different risk class than the acute disruptions the product is designed for.
+
+The Isolation Forest anomaly model also flags workers whose claim frequency or payout amounts deviate significantly from their own historical baseline and from zone-wide peer patterns. GPS validation, activity cross-checks, and velocity guards provide additional layers.
+
+### Truly Systemic Events — COVID-Scale Disruptions
+
+GigShield is designed for recoverable, zone-level disruptions — events that last hours to days and affect a defined geography. It is explicitly not designed to be the primary safety net for economy-wide, indefinite disruptions like a pandemic.
+
+For events of that magnitude, two mechanisms apply:
+
+**Proportional drawdown from the Solidarity Pool.** If the pool reserve is insufficient to cover all triggered payouts in a given week, payouts scale down proportionally across all eligible workers rather than some workers receiving full payouts and others receiving nothing. This mirrors how real mutual insurance handles catastrophe scenarios.
+
+**Policy suspension with reserve protection.** If a systemic event persists beyond the consecutive trigger cap and the pool reserve falls below a defined floor, new auto-payouts are suspended and the reserve is held for manual disbursement. At this point the event has moved outside the parametric insurance model and into territory that requires government or platform-level intervention.
+
+We are transparent about this boundary because good insurance design means knowing what you are not covering, not pretending every scenario is solvable with the same product.
+
+---
+
 ## Team
 
 Guidewire DEVTrails 2026 Participant Team
