@@ -150,6 +150,58 @@ Opt-in micro-savings layer. In high-earning weeks, the platform retains a small 
 
 ---
 
+## Adversarial Defense & Anti-Spoofing Strategy *(Market Crash — Phase 1)*
+
+A 500-person fraud syndicate just drained another platform's liquidity pool. They organised on Telegram, spoofed GPS coordinates, and collected payouts while sitting safely at home. Simple GPS verification is dead.
+
+When we heard about this we had an uncomfortable realisation — a basic GPS check was never going to be enough for GigShield anyway. But there's a deeper problem specific to our architecture that most teams probably haven't thought about. So here's our full response: the standard defenses, the ones specific to us, and a couple of things we came up with ourselves.
+
+### The Attack Nobody Else Is Talking About — Manufacturing the T2 Signal *(GigShield-specific vulnerability)*
+
+Here's the thing about GigShield that makes it different from every other platform that got hit: our payout requires both T1 (weather signal) and T2 (zone order drop) to fire simultaneously. A GPS spoof alone doesn't work on us because the T2 trigger is watching platform order activity, not the worker's location.
+
+So a smart fraud ring targeting GigShield wouldn't bother spoofing GPS. They'd realise that if they can coordinate 500 workers to all go offline on the platform simultaneously, they manufacture the T2 signal themselves. Real weather is happening, real GPS, everything looks legitimate — but the income loss is fake because they chose to stop working.
+
+We call this the T2 Manufacturing Attack, and it's ours to solve.
+
+The defense: compare the shape of the order drop against historical disruption signatures. A genuine weather-driven drop has a natural curve — orders slow as conditions worsen, plateau at the worst point, then gradually recover as it clears. A coordinated offline event shows something completely different — a cliff edge. Drop is near-simultaneous across accounts, and when the ring comes back online, recovery is simultaneous too. That cliff signature doesn't exist in any of our 90-day historical baseline data. It gets flagged immediately.
+
+### The Parametric Honeypot *(novel response to Market Crash)*
+
+This one we're fairly proud of. Occasionally — maybe once or twice a month — GigShield will publish a fake disruption alert internally to a zone where no real disruption occurred. This alert is never visible to workers and never triggers real payouts. It only exists inside the system.
+
+Any account that initiates a claim during a fake alert window is definitionally spoofing. There was no real event. No genuine worker would have a reason to claim. The only way to trigger on a fake event is if you're actively polling the system for trigger conditions rather than actually experiencing a disruption. Every account that claims on a honeypot event gets flagged and their entire claim history gets reviewed.
+
+### Standard Defenses — Done Properly
+
+Beyond the two above, here's how we handle the GPS spoofing problem everyone is facing:
+
+**GPS trajectory consistency.** We don't check location once. We ping at randomised intervals throughout the shift — randomised specifically so a spoofing script can't predict when to show the right coordinates. A real worker waiting out a storm moves slightly, shifts around, maybe walks to a window. A spoofed coordinate is either teleporting between pings or sitting perfectly pixel-identical across every ping. Neither is physically plausible.
+
+**Cross-signal behavioral fingerprint.** GPS can be spoofed at the app layer. Cell tower triangulation cannot — that's the carrier's data, not the device's. If GPS says Koramangala but cell towers say Marathahalli, that's a contradiction no spoofing app can resolve without physically being there. We also cross-check platform activity (can't be in a flood zone and completing deliveries elsewhere simultaneously), UPI transaction location metadata, app session behavior patterns, and battery state.
+
+**Ring detection via graph analysis.** Individual fraudsters are hard to catch. Coordinated rings betray themselves through patterns they can't avoid. We look for claim timing clustering (a real population claims across a natural distribution; a fraud ring activates in a narrow automated window), device fingerprint clustering (mass-provisioned accounts share hardware profiles), network origin clustering (same IP subnet or SIM farm), and payout destination clustering (30 accounts all routing to the same 3 UPI wallets).
+
+**Isolation Forest anomaly scoring.** Every worker has a personal behavioral baseline. A worker with 6 months of clean history scores low anomaly — fast pay. A new account with no history, suspicious device fingerprint, and zero GPS trajectory variation scores high — quarantine and review. This naturally gives long-tenured honest workers benefit of the doubt without a blanket policy that punishes everyone.
+
+**Payout velocity inversion.** Fraud rings optimise for speed — they want money out fast. We introduced an optional payout timing choice: instant payout (higher scrutiny threshold) or standard 2-hour payout (lower scrutiny, small trust score earned). A worker who is genuinely stranded is not in a rush — the money is coming regardless. A fraud ring optimising for extraction rate will cluster almost entirely on instant payout, which is itself a strong signal.
+
+### How We Handle Honest Workers Who Get Caught
+
+The thing we kept coming back to while designing this: false positives are their own kind of disaster. A legitimate worker getting their claim denied because they live near a fraud cluster, or because their phone had a GPS glitch in bad weather, is exactly the outcome we're trying to prevent.
+
+So the rule is: flagged claims are quarantined, never denied. The worker gets a Hinglish message — "Tera claim review mein hai — 24 ghante mein update aayega." Manual review happens within 24 hours. Workers can submit supporting evidence (photo from the zone, platform screenshot showing no active deliveries). Workers in the Trusted Partner tier get a higher anomaly threshold before quarantine even kicks in.
+
+Ring contamination protection matters too. If a genuine worker's claim gets swept up in a ring detection event just because they live in the same zone, their individual behavioral profile is checked before any hold is placed. Clean history protects you.
+
+### The Economic Argument
+
+To successfully extract a payout from GigShield, a fraud ring would need to simultaneously defeat randomised GPS trajectory plausibility checks, cell tower cross-validation, platform activity cross-checks, UPI location metadata, the T2 cliff detection, avoid triggering on a potential honeypot event, match the natural timing distribution of genuine claims, avoid device and network clustering signatures, and build months of clean history per account first.
+
+At that point the cost of the attack exceeds the payout. That's the correct design goal — not making fraud impossible, but making it economically irrational.
+
+---
+
 ## LLM Communication Layer
 
 The Groq API (Llama 3.1 8B) powers all worker-facing communication in Hinglish. The LLM is used for:
