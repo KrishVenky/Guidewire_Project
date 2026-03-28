@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Enum as SAEnum
+from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Enum as SAEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -29,7 +29,7 @@ class Worker(Base):
     phone = Column(String, unique=True, nullable=False, index=True)
     upi_id = Column(String, nullable=False)
     platform = Column(SAEnum(Platform), nullable=False)
-    zone_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    zone_id = Column(UUID(as_uuid=True), ForeignKey("zones.id"), nullable=False, index=True)
 
     avg_weekly_income = Column(Float, default=3500.0)
     declared_weekly_hours = Column(Integer, default=48)

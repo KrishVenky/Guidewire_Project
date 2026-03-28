@@ -11,6 +11,7 @@ from ..models.payout import Payout, PayoutStatus
 from ..models.disruption_event import DisruptionEvent
 from ..models.zone import Zone
 from ..schemas.worker import WorkerResponse
+from ..integrations.order_proxy import is_bandh_active
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -160,6 +161,7 @@ def list_zones(db: Session = Depends(get_db)):
             "risk_multiplier": z.risk_multiplier,
             "lat_center": z.lat_center,
             "lng_center": z.lng_center,
+            "bandh_active": is_bandh_active(str(z.id)),
         }
         for z in zones
     ]

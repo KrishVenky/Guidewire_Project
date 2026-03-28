@@ -26,35 +26,13 @@ export default function AdminDashboard() {
 
   // Admin gate
   const [adminPin, setAdminPin] = useState('')
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl p-8 w-full max-w-sm text-center space-y-4">
-          <h1 className="text-2xl font-bold text-gray-800">Admin Login</h1>
-          <input
-            type="password"
-            placeholder="PIN"
-            value={adminPin}
-            onChange={e => setAdminPin(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-center text-2xl tracking-widest"
-          />
-          <button
-            onClick={() => { if (adminPin === 'admin123') setAdmin(true) }}
-            className="w-full bg-gray-900 text-white py-3 rounded-xl font-semibold"
-          >
-            Enter
-          </button>
-          <p className="text-xs text-gray-400">PIN: admin123 (demo)</p>
-        </div>
-      </div>
-    )
-  }
 
   useEffect(() => {
+    if (!isAdmin) return
     loadAll()
     const i = setInterval(loadAll, 30000)
     return () => clearInterval(i)
-  }, [])
+  }, [isAdmin])
 
   const loadAll = async () => {
     const [d, p, f, t, z] = await Promise.allSettled([
@@ -92,6 +70,30 @@ export default function AdminDashboard() {
   }
 
   const TABS = ['overview', 'claims', 'simulate', 'zones']
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl p-8 w-full max-w-sm text-center space-y-4">
+          <h1 className="text-2xl font-bold text-gray-800">Admin Login</h1>
+          <input
+            type="password"
+            placeholder="PIN"
+            value={adminPin}
+            onChange={e => setAdminPin(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-center text-2xl tracking-widest"
+          />
+          <button
+            onClick={() => { if (adminPin === 'admin123') setAdmin(true) }}
+            className="w-full bg-gray-900 text-white py-3 rounded-xl font-semibold"
+          >
+            Enter
+          </button>
+          <p className="text-xs text-gray-400">PIN: admin123 (demo)</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -281,13 +283,14 @@ export default function AdminDashboard() {
                     <p className="font-medium text-gray-800">{z.name}</p>
                     <p className="text-xs text-gray-400">Risk mult: {z.risk_multiplier}×</p>
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleBandh(z.id, true)}
-                      className="px-3 py-1.5 bg-red-100 text-red-700 text-xs rounded-lg hover:bg-red-200">
+                  <div className="flex gap-2 items-center">
+                    {z.bandh_active && <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-1 rounded-full">BANDH ACTIVE</span>}
+                    <button onClick={() => handleBandh(z.id, true)} disabled={z.bandh_active}
+                      className={`px-3 py-1.5 text-xs rounded-lg ${z.bandh_active ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>
                       Activate Bandh
                     </button>
-                    <button onClick={() => handleBandh(z.id, false)}
-                      className="px-3 py-1.5 bg-green-100 text-green-700 text-xs rounded-lg hover:bg-green-200">
+                    <button onClick={() => handleBandh(z.id, false)} disabled={!z.bandh_active}
+                      className={`px-3 py-1.5 text-xs rounded-lg ${!z.bandh_active ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
                       Clear Bandh
                     </button>
                   </div>
