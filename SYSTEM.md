@@ -1,4 +1,4 @@
-# SYSTEM.md — GigShield Internal System Brain
+# SYSTEM.md — RainReady Internal System Brain
 
 > **FOR:** Developers, coding agents, LLMs working on this codebase
 > **PURPOSE:** Complete implementation reference. Every component, endpoint, data model, directory, integration, and test status documented here. Read this before touching any file.
@@ -30,28 +30,28 @@
 ### The Golden Rule of This Codebase
 **The LLM never makes financial decisions. Ever.**
 
-The trigger engine is deterministic rules only. The premium calculator is deterministic math only. The fraud detector is rule + statistical only. The LLM (Llama 3.1 8B via Ollama) exists in exactly one place: the communication layer that explains decisions already made, in Hinglish, to the worker.
+The trigger engine is deterministic rules only. The premium calculator is deterministic math only. The fraud detector is rule + statistical only. The LLM (Llama 3.1 8B via Groq API) exists in exactly one place: the communication layer that explains decisions already made, in Hinglish, to the worker.
 
-If you find yourself routing a financial decision through Ollama — stop. That is a bug.
+If you find yourself routing a financial decision through the LLM — stop. That is a bug.
 
 ### Dual-Trigger Parametric Model (DTPM)
 A payout is initiated ONLY when both triggers fire simultaneously:
-- **T1:** An official disruption signal from a verified external source (SACHET/IMD/WAQI)
+- **T1:** An official disruption signal from a verified external source (SACHET/Open-Meteo/WAQI)
 - **T2:** Zone-level order activity drop >60% vs the 7-day rolling average for that zone/hour
 
 Neither trigger alone is sufficient. This is the core insurance architecture decision and must not be changed without updating the premium model accordingly.
 
 ### Data Flow (High Level)
 ```
-External APIs (SACHET, IMD, WAQI, OWM)
-    → Poller Service (Celery beat, every 15 min)
+External APIs (SACHET, Open-Meteo, WAQI)
+    → APScheduler Jobs (every 5 min per zone)
         → Trigger Engine (rules evaluation)
             → If BOTH T1 + T2 fire:
                 → Fraud Check
                     → If clean: Claim created, Payout initiated (Razorpay mock)
                     → If flagged: Claim created, status = MANUAL_REVIEW
-            → Regardless: LLM generates worker notification message
-                → Push to worker dashboard + simulated SMS
+            → Regardless: LLM generates worker notification message (Groq API)
+                → Push to worker dashboard + simulated SMS (fallback to template if no key)
 ```
 
 ---
@@ -59,14 +59,14 @@ External APIs (SACHET, IMD, WAQI, OWM)
 ## 2. Repository Structure
 
 ```
-gigshield/
+rainready/
 │
 ├── README.md                         # Hackathon submission doc (public)
 ├── SYSTEM.md                         # This file (internal brain)
-├── docker-compose.yml                # Spins up: server, client, postgres, redis, ollama
+├── docker-compose.yml                # Spins up: server, client, postgres, redis
 ├── .env.example                      # Copy to .env and fill values
 │
-├── client/                           # React 18 + Vite + TailwindCSS
+├── client/                           # React 18 + Vite + TailwindCSS (Phase 2 PWA)
 │   ├── public/
 │   ├── src/
 │   │   ├── main.jsx                  # Entry point
@@ -98,7 +98,7 @@ gigshield/
 │   └── package.json
 │
 ├── server/                           # FastAPI Python backend
-│   ├── main.py                       # FastAPI app entry, router registration
+│   ├── main.py                       # FastAPI app entry, router registration, APScheduler startup
 │   ├── config.py                     # Settings via pydantic-settings (.env reader)
 │   ├── database.py                   # SQLAlchemy engine + session factory
 │   │
@@ -131,30 +131,37 @@ gigshield/
 │   │   ├── premium_calculator.py     # Weekly premium computation
 │   │   ├── fraud_detector.py         # Fraud rule evaluation
 │   │   ├── payout_service.py         # Razorpay mock integration
-│   │   ├── llm_service.py            # Ollama client (comm layer only)
+│   │   ├── llm_service.py            # Groq client (comm layer only) + template fallback
 │   │   └── notification_service.py   # Worker notifications
 │   │
 │   ├── integrations/                 # External API clients
 │   │   ├── sachet.py                 # SACHET NDMA RSS feed parser
-│   │   ├── imd.py                    # IMD weather API client
+│   │   ├── open_meteo.py             # Open-Meteo weather client (free, no key)
 │   │   ├── waqi.py                   # WAQI AQI API client
-│   │   ├── openweather.py            # OpenWeatherMap fallback
+│   │   ├── order_proxy.py            # Simulated zone order-rate microservice
+│   │   ├── bandh_signal.py           # Mock bandh/curfew signal (admin-togglable)
 │   │   └── razorpay_mock.py          # Mock payout gateway
 │   │
-│   ├── tasks/                        # Celery async tasks
-│   │   ├── celery_app.py             # Celery + Redis config
-│   │   ├── poll_disruptions.py       # Every 15min: fetch all external APIs
-│   │   ├── evaluate_triggers.py      # Every 15min: run DTPM evaluation
+│   ├── jobs/                         # APScheduler background jobs
+│   │   ├── scheduler.py              # APScheduler instance + job registration
+│   │   ├── poll_disruptions.py       # Every 5min: fetch all external APIs per zone
+│   │   ├── evaluate_triggers.py      # Every 5min: run DTPM evaluation per zone
 │   │   ├── process_payouts.py        # Async payout processing
-│   │   └── weekly_premium.py         # Monday: deduct weekly premiums
+│   │   └── weekly_premium.py         # Monday 06:00 IST: deduct weekly premiums
+│   │
+│   ├── ml/                           # ML models (trained offline, loaded at startup)
+│   │   ├── train_premium_model.py    # XGBoost training script (run once)
+│   │   ├── premium_model.joblib      # Serialized XGBoost model
+│   │   ├── fraud_model.py            # Isolation Forest anomaly scorer
+│   │   └── earnings_velocity.py      # Per-worker hourly earning rate profiler
 │   │
 │   ├── migrations/                   # Alembic DB migrations
 │   │   └── versions/
 │   │
 │   ├── seeds/                        # Dev seed data
-│   │   ├── zones.py                  # Bengaluru zones seed
+│   │   ├── zones.py                  # Bengaluru zones seed (4 zones)
 │   │   ├── workers.py                # Mock worker profiles
-│   │   └── historical_activity.py   # Zone activity baseline data
+│   │   └── historical_activity.py    # Zone activity baseline (90-day mock)
 │   │
 │   ├── tests/                        # Pytest test suite
 │   │   ├── test_trigger_engine.py
@@ -164,6 +171,13 @@ gigshield/
 │   │
 │   ├── requirements.txt
 │   └── Dockerfile
+│
+├── postman/                          # API test suite
+│   ├── RainReady_Phase2.postman_collection.json   # Full Phase 2 endpoint coverage
+│   └── RainReady.postman_environment.json         # Environment (base_url, auto-captured IDs)
+│
+└── scripts/
+    └── seed_historical_data.py       # Standalone seeder (can run outside Docker)
 ```
 
 ---
@@ -180,10 +194,12 @@ class Worker:
     platform: enum [ZOMATO, SWIGGY, BLINKIT, INSTAMART, MULTIPLE]
     zone_id: UUID (FK → Zone)
     avg_weekly_income: float          # Self-reported at onboarding, used for premium base
+    declared_weekly_hours: int        # Self-reported, used for hourly rate calculation
     registration_date: datetime
     is_active: bool
     kyc_verified: bool
-    tenure_weeks: int                 # Computed, used for tenure discount
+    tenure_weeks: int                 # Computed weekly, used for tenure discount
+    trust_tier: enum [NEW_PARTNER, RISING_PARTNER, TRUSTED_PARTNER]  # Phase 3 active
 ```
 
 ### Zone
@@ -198,8 +214,14 @@ class Zone:
     heat_risk_score: float
     aqi_risk_score: float
     risk_multiplier: float            # Derived: 0.8–1.4, used in premium calc
-    imd_station_id: str               # Nearest IMD weather station
+    open_meteo_lat: float             # Lat for Open-Meteo API call
+    open_meteo_lng: float             # Lng for Open-Meteo API call
     waqi_station_id: str              # Nearest WAQI monitoring station
+    sachet_district: str              # District name for SACHET alert matching
+    rain_threshold: float             # mm/hr — from zone_config, recalibrated weekly
+    heat_threshold: float             # °C — from zone_config, recalibrated weekly
+    aqi_threshold: float              # AQI value — from zone_config, recalibrated weekly
+    order_drop_threshold: float       # % drop — from zone_config, recalibrated weekly
 ```
 
 ### Policy
@@ -223,14 +245,17 @@ class Policy:
 class DisruptionEvent:
     id: UUID (PK)
     zone_id: UUID (FK → Zone)
-    event_type: enum [HEAVY_RAIN, EXTREME_HEAT, HIGH_AQI, NDMA_ALERT, PLATFORM_OUTAGE]
-    source: enum [SACHET, IMD, WAQI, OPENWEATHER, MOCK]
-    severity: enum [WATCH, WARNING, SEVERE, EXTREME]
+    event_type: enum [HEAVY_RAIN, EXTREME_HEAT, HIGH_AQI, NDMA_ALERT, ORDER_DROP, BANDH]
+    source: enum [SACHET, OPEN_METEO, WAQI, ORDER_PROXY, BANDH_MOCK]
+    severity_score: float             # 0–100, computed from T1 intensity + T2 magnitude
     raw_value: float                  # e.g. rainfall mm/hr, temp °C, AQI value
     threshold_breached: float         # Zone-specific threshold that was exceeded
-    t1_confirmed: bool                # Official signal trigger fired
-    t2_confirmed: bool                # Activity drop trigger fired
+    order_drop_pct: float             # T2 — how far below baseline (e.g. 72.3%)
+    t1_confirmed: bool
+    t2_confirmed: bool
     dual_trigger_fired: bool          # Both T1 + T2 = True → payout eligible
+    payout_tier: enum [NONE, HALF, THREE_QUARTER, FULL]  # Derived from severity_score
+    is_honeypot: bool                 # True = fake alert for fraud detection
     started_at: datetime
     ended_at: datetime (nullable)
     affected_worker_count: int
@@ -246,13 +271,14 @@ class Claim:
     status: enum [AUTO_APPROVED, MANUAL_REVIEW, APPROVED, REJECTED, PAID]
     claimed_hours_lost: float         # Auto-calculated from disruption duration
     estimated_income_lost: float      # claimed_hours × (avg_weekly_income / active_hours)
-    payout_amount: float              # Actual approved payout
+    payout_amount: float              # Actual approved payout (after severity tier)
     fraud_score: float                # 0.0–1.0 (>0.7 = MANUAL_REVIEW)
     fraud_flags: list[str]            # e.g. ["GPS_MISMATCH", "VELOCITY_BREACH"]
     auto_initiated: bool              # True = system-generated, False = manual
     created_at: datetime
     reviewed_at: datetime (nullable)
     llm_explanation: str              # Hinglish message shown to worker
+    trust_survey_response: JSON       # 3-tap post-payout survey (nullable)
 ```
 
 ### Payout
@@ -263,7 +289,7 @@ class Payout:
     worker_id: UUID (FK → Worker)
     amount: float
     upi_id: str                       # Worker UPI at time of payout
-    razorpay_payment_id: str          # Mock gateway reference
+    razorpay_payment_id: str          # Mock gateway reference (rzp_mock_ prefix)
     status: enum [PENDING, PROCESSING, COMPLETED, FAILED]
     initiated_at: datetime
     completed_at: datetime (nullable)
@@ -291,7 +317,7 @@ class AuditLog:
 - Creates FastAPI app instance
 - Registers all routers with `/api` prefix
 - Registers CORS middleware (allow all origins in dev)
-- On startup: initializes DB tables, seeds zone data if empty
+- On startup: initializes DB tables, seeds zone data if empty, starts APScheduler
 
 ### Config: `server/config.py`
 Reads from `.env` via pydantic-settings. Key variables listed in Section 11.
@@ -327,7 +353,8 @@ Reads from `.env` via pydantic-settings. Key variables listed in Section 11.
 |--------|------|-------------|------|
 | GET | `/active` | Get all currently active disruptions | None |
 | GET | `/zone/{zone_id}` | Disruptions for specific zone | None |
-| POST | `/simulate` | **Dev only** — trigger a mock disruption | Admin |
+| POST | `/simulate` | Dev only — trigger a mock disruption | Admin |
+| POST | `/bandh/toggle` | Toggle bandh signal for a zone | Admin |
 
 #### Admin — `/api/admin`
 | Method | Path | Description | Auth |
@@ -336,12 +363,18 @@ Reads from `.env` via pydantic-settings. Key variables listed in Section 11.
 | GET | `/claims/pending` | All claims awaiting review | Admin |
 | GET | `/workers` | All registered workers | Admin |
 | GET | `/financial-summary` | Loss ratios, payout totals | Admin |
+| GET | `/zone-trust-scores` | Post-payout survey trust scores per zone | Admin |
 
 #### LLM — `/api/llm`
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
 | POST | `/explain-claim` | Generate Hinglish claim explanation | Internal |
 | POST | `/onboarding-chat` | Conversational onboarding Q&A | Worker |
+
+#### Health
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Server health + DB connectivity check |
 
 ---
 
@@ -358,15 +391,16 @@ Reads from `.env` via pydantic-settings. Key variables listed in Section 11.
 /admin                    → AdminDashboard (requires admin auth)
 /admin/claims             → Pending claims review queue
 /admin/analytics          → Loss ratios, risk analytics
+/admin/zone-trust         → Zone trust score dashboard (post-payout surveys)
 ```
 
 ### Key Pages
 
 #### Onboarding (`/pages/Onboarding/`)
-Multi-step flow — 4 steps:
-1. Phone number entry + OTP (mocked)
+Multi-step flow — 5 steps:
+1. Phone number entry + OTP (mocked via Supabase Auth)
 2. Personal details (name, platform, zone selection)
-3. UPI ID entry + income declaration
+3. UPI ID entry + income/hours declaration
 4. LLM chat assistant: explains policy in Hinglish, answers questions
 5. Premium preview → confirm + activate policy
 
@@ -379,6 +413,7 @@ Shows:
 - Recent claims with status badges
 - Live disruption alerts for worker's zone
 - Earnings protected (cumulative payout total)
+- Post-payout survey (fires after payout completes)
 
 Data source: `GET /api/workers/{id}/dashboard` (single aggregated endpoint)
 
@@ -388,63 +423,74 @@ Shows:
 - This week's disruption events
 - Claims pipeline (auto-approved / pending review / paid)
 - Loss ratio chart (Recharts LineChart)
-- Zone risk heatmap
+- Zone risk heatmap (styled grid, no Google Maps dependency)
+- Zone trust scores from post-payout surveys
+- Bandh signal toggle per zone
 - Predictive alert: next 48h disruption probability per zone
 
 #### DisruptionMap (`/pages/DisruptionMap/`)
-Visual zone status display. Not a real map (no Google Maps dependency). Uses a styled zone grid showing each Bengaluru zone with color-coded status (green/yellow/orange/red) based on active disruption level.
+Styled zone grid — each Bengaluru zone color-coded (green/yellow/orange/red) based on active disruption level. No Google Maps dependency.
 
 ---
 
 ## 6. External Integrations
 
-### SACHET NDMA (`server/integrations/sachet.py`)
-- **Source:** https://sachet.ndma.gov.in/
-- **Method:** RSS feed parsing (feedparser library)
-- **Poll frequency:** Every 15 minutes via Celery beat
-- **What we extract:** Alert type, severity, affected districts, issued_at
-- **Mapping:** District → Zone (lookup table in seeds/zones.py)
-- **Trigger condition:** severity in [ORANGE, RED] and district matches any active zone
-
-### IMD API (`server/integrations/imd.py`)
-- **Source:** IndianAPI.in (wraps IMD data, free tier 1000 req/day)
-- **Method:** REST GET, JSON response
-- **Poll frequency:** Every 15 minutes
-- **What we extract:** rainfall_mm_per_hr, temp_celsius, wind_speed, forecast_next_6hr
-- **Trigger condition (rain):** rainfall > zone.rain_threshold (default 50mm/hr)
-- **Trigger condition (heat):** temp > 44°C for 3+ consecutive polls
+### Open-Meteo (`server/integrations/open_meteo.py`)
+- **Source:** https://api.open-meteo.com — completely free, no API key required
+- **Method:** REST GET, JSON response per lat/lng
+- **Poll frequency:** Every 5 minutes via APScheduler
+- **What we extract:** `precipitation` (mm/hr), `temperature_2m` (°C), `apparent_temperature`, `wind_speed_10m`, hourly forecast next 6hr
+- **Trigger condition (rain):** precipitation > zone.rain_threshold (default 50mm/hr), sustained 45min (3 consecutive polls)
+- **Trigger condition (heat):** temperature_2m > zone.heat_threshold (default 44°C) for 3+ consecutive polls
+- **Forecast Shield:** 6-hour forecast with >70% probability of threshold breach → proactive alert (Phase 3)
 
 ### WAQI AQI (`server/integrations/waqi.py`)
-- **Source:** api.waqi.info (free token, unlimited)
+- **Source:** api.waqi.info — free token via aqicn.org/api
 - **Method:** REST GET, JSON response
-- **Poll frequency:** Every 30 minutes (AQI changes slower)
-- **What we extract:** aqi_value, dominant_pollutant, pm25, pm10
-- **Trigger condition:** aqi > 300 (Hazardous per NAQI scale)
+- **Poll frequency:** Every 5 minutes
+- **What we extract:** `aqi` (overall AQI), `dominant_pollutant`, `pm25`, `pm10`
+- **Trigger condition:** aqi > zone.aqi_threshold (default 300, Hazardous per NAQI scale)
 
-### OpenWeatherMap (`server/integrations/openweather.py`)
-- **Role:** Fallback if IMD is unavailable
-- **Method:** REST GET, JSON response
-- **Free tier:** 1000 calls/day
-- **Used for:** Rain intensity confirmation, temperature cross-check
+### SACHET NDMA (`server/integrations/sachet.py`)
+- **Source:** https://sachet.ndma.gov.in/ — public RSS/XML, no auth required
+- **Method:** RSS feed parsing (feedparser library)
+- **Poll frequency:** Every 5 minutes
+- **What we extract:** Alert type, severity, affected districts, issued_at
+- **Mapping:** District → Zone via lookup table in `seeds/zones.py`
+- **Trigger condition:** severity in [ORANGE, RED] and district matches any active zone
+
+### Order Proxy (`server/integrations/order_proxy.py`)
+- **Not a real platform API** — simulated microservice built into the backend
+- Returns `zone_order_rate` using: seeded 90-day historical baseline + weather-correlated noise formula
+- Exposes: `GET /internal/order-rate/{zone_id}` — returns current rate vs 7-day rolling average
+- T2 fires when drop_pct ≥ zone.order_drop_threshold (default 60%)
+
+### Bandh Signal (`server/integrations/bandh_signal.py`)
+- Mock JSON endpoint togglable from admin dashboard
+- `POST /api/disruptions/bandh/toggle` with `{ "zone_id": "...", "active": true }`
+- When active, fires T1 for social disruption type in that zone
+- Stored in DB as disruption_event with source=BANDH_MOCK
 
 ### Razorpay Mock (`server/integrations/razorpay_mock.py`)
-- **NOT real Razorpay SDK** — this is a mock that simulates the API shape
+- NOT real Razorpay SDK — simulates the API shape
 - Generates fake `payment_id` with `rzp_mock_` prefix
 - Simulates 95% success rate, 5% random failure (realistic testing)
 - Records payout in local DB only
-- In Phase 3: swap this class for real Razorpay test mode SDK
+- Phase 3: swap this class for real Razorpay test mode SDK with Twilio SMS sandbox
 
 ---
 
 ## 7. LLM Layer
 
-### Model: Llama 3.1 8B via Ollama
-- **Runs on:** localhost:11434 (Ollama default)
-- **Quantization:** Q4_K_M (fits in ~9GB VRAM on 4060 Ti 16GB)
-- **Pull command:** `ollama pull llama3.1:8b`
+### Model: Llama 3.1 8B via Groq API
+- **Provider:** Groq Cloud (groq.com — free tier, fast inference)
+- **Env var:** `GROQ_API_KEY` — if not set, system falls back to template strings automatically
+- **Model ID:** `llama-3.1-8b-instant`
+- **Fallback:** Hardcoded Hinglish template strings in `llm_service.py` — app is fully functional without a Groq key
 
 ### LLM Service (`server/services/llm_service.py`)
-Wraps all Ollama calls. Two functions only:
+
+Two functions only:
 
 #### `generate_claim_explanation(claim, disruption_event, worker) → str`
 Called after a claim is created. Returns a Hinglish explanation of:
@@ -455,27 +501,30 @@ Called after a claim is created. Returns a Hinglish explanation of:
 
 **System prompt template:**
 ```
-You are GigShield's assistant. Explain the following insurance claim decision 
-to a delivery worker in simple Hindi-English mix (Hinglish). 
+You are RainReady's assistant. Explain the following insurance claim decision
+to a delivery worker in simple Hindi-English mix (Hinglish).
 Be warm, clear, and under 100 words. Do not use technical terms.
 Never suggest the decision could be wrong.
 Facts: {claim_json}
 ```
 
+**Fallback template (no API key):**
+```
+"Aaj {zone_name} mein {event_type_hindi} ki wajah se orders band the.
+Tera claim approved hai. ₹{payout_amount} tera UPI {upi_id} mein
+{eta} mein aa jayega. Koi sawaal? App mein help section check karo."
+```
+
 #### `onboarding_chat(message, conversation_history, worker_context) → str`
-Handles conversational onboarding. Answers questions about:
-- How the insurance works
-- What is covered / not covered
-- How premium is calculated for their zone
-- How payouts work
+Handles conversational onboarding. Answers questions about coverage, premium, payouts.
 
 **System prompt template:**
 ```
-You are GigShield's onboarding assistant for delivery workers.
-Answer only questions about GigShield insurance.
+You are RainReady's onboarding assistant for delivery workers.
+Answer only questions about RainReady insurance.
 Speak in simple Hinglish. Be brief (under 80 words per reply).
 Worker context: {worker_context}
-If asked anything not related to GigShield, politely redirect.
+If asked anything not related to RainReady, politely redirect.
 ```
 
 ### What the LLM Must NEVER Do
@@ -483,7 +532,7 @@ If asked anything not related to GigShield, politely redirect.
 - Approve or reject claims
 - Evaluate fraud
 - Access the database directly
-- Make API calls
+- Make API calls to external services
 
 ---
 
@@ -491,58 +540,87 @@ If asked anything not related to GigShield, politely redirect.
 
 **File:** `server/services/trigger_engine.py`
 
-This is the most critical service in the system. It is pure deterministic logic.
+This is the most critical service in the system. It is pure deterministic logic — zero ML, zero LLM.
 
-### Evaluation Flow (runs every 15 min via Celery)
+### Evaluation Flow (runs every 5 min via APScheduler)
 ```python
 for each zone in active_zones:
     t1 = evaluate_t1(zone)     # Check external disruption signals
     t2 = evaluate_t2(zone)     # Check zone activity drop
-    
+
     if t1 and t2:
-        event = create_disruption_event(zone, t1_data, t2_data)
-        eligible_workers = get_active_policy_workers_in_zone(zone)
-        for worker in eligible_workers:
-            fraud_result = fraud_detector.evaluate(worker, event)
-            claim = create_claim(worker, event, fraud_result)
-            if not fraud_result.flagged:
-                payout_service.initiate(claim)
-            notification_service.notify(worker, claim)
+        severity = compute_severity(t1, t2)  # 0–100
+        payout_tier = severity_to_tier(severity)  # NONE/HALF/THREE_QUARTER/FULL
+
+        if payout_tier != NONE:
+            event = create_disruption_event(zone, t1, t2, severity)
+            eligible_workers = get_active_policy_workers_in_zone(zone)
+            for worker in eligible_workers:
+                fraud_result = fraud_detector.evaluate(worker, event)
+                claim = create_claim(worker, event, fraud_result)
+                if not fraud_result.flagged:
+                    payout_service.initiate(claim)
+                notification_service.notify(worker, claim)
+                llm_service.generate_claim_explanation(claim, event, worker)
 ```
 
 ### T1 Evaluation Logic
 ```python
 def evaluate_t1(zone) -> T1Result:
     # Priority order — first match wins
-    if sachet.has_active_alert(zone.district, severity=['ORANGE','RED']):
+    if sachet.has_active_alert(zone.sachet_district, severity=['ORANGE','RED']):
         return T1Result(confirmed=True, source='SACHET', ...)
-    
-    imd_data = imd.get_current(zone.imd_station_id)
-    if imd_data.rainfall_mm_per_hr > zone.rain_threshold:
-        return T1Result(confirmed=True, source='IMD_RAIN', ...)
-    if imd_data.temp_celsius > 44 and consecutive_hot_polls >= 3:
-        return T1Result(confirmed=True, source='IMD_HEAT', ...)
-    
-    waqi_data = waqi.get_current(zone.waqi_station_id)
-    if waqi_data.aqi > 300:
+
+    if bandh_signal.is_active(zone.id):
+        return T1Result(confirmed=True, source='BANDH_MOCK', ...)
+
+    meteo = open_meteo.get_current(zone.open_meteo_lat, zone.open_meteo_lng)
+    if meteo.precipitation_mm_hr > zone.rain_threshold and consecutive_rain_polls >= 3:
+        return T1Result(confirmed=True, source='OPEN_METEO_RAIN', ...)
+    if meteo.temperature_2m > zone.heat_threshold and consecutive_heat_polls >= 3:
+        return T1Result(confirmed=True, source='OPEN_METEO_HEAT', ...)
+
+    aqi = waqi.get_current(zone.waqi_station_id)
+    if aqi.value > zone.aqi_threshold:
         return T1Result(confirmed=True, source='WAQI', ...)
-    
+
     return T1Result(confirmed=False)
 ```
 
 ### T2 Evaluation Logic
 ```python
 def evaluate_t2(zone) -> T2Result:
-    current_rate = activity_monitor.get_current_order_rate(zone)
-    baseline = activity_monitor.get_rolling_baseline(zone, days=7)
+    current_rate = order_proxy.get_current_order_rate(zone.id)
+    baseline = order_proxy.get_rolling_baseline(zone.id, days=7)
     drop_pct = (baseline - current_rate) / baseline * 100
-    
-    if drop_pct >= 60:
-        return T2Result(confirmed=True, drop_percentage=drop_pct)
-    return T2Result(confirmed=False, drop_percentage=drop_pct)
+
+    # T2 Manufacturing Attack detection — compare drop shape vs historical curve
+    if drop_pct >= zone.order_drop_threshold:
+        cliff_score = fraud_detector.cliff_edge_score(zone.id)
+        if cliff_score > 0.85:
+            # Coordinated offline attack detected — do not fire T2
+            log_t2_manufacturing_attempt(zone)
+            return T2Result(confirmed=False, cliff_detected=True, drop_pct=drop_pct)
+        return T2Result(confirmed=True, drop_pct=drop_pct)
+
+    return T2Result(confirmed=False, drop_pct=drop_pct)
 ```
 
-**Note on T2 in hackathon context:** Real platform order data is not accessible. T2 is simulated using a synthetic activity model seeded with historical patterns + disruption correlation. In production this would be a platform API integration.
+### Severity Score Computation
+```python
+def compute_severity(t1: T1Result, t2: T2Result) -> float:
+    # T1 intensity component (0–60 points)
+    t1_score = min(60, (t1.raw_value / t1.threshold) * 40)
+    # T2 magnitude component (0–40 points)
+    t2_score = min(40, (t2.drop_pct / 60) * 40)
+    return t1_score + t2_score
+
+def severity_to_tier(score: float) -> PayoutTier:
+    if score <= 40:   return PayoutTier.NONE
+    if score <= 60:   return PayoutTier.HALF
+    if score <= 80:   return PayoutTier.THREE_QUARTER
+    return PayoutTier.FULL
+```
 
 ---
 
@@ -552,10 +630,9 @@ def evaluate_t2(zone) -> T2Result:
 
 ### Formula
 ```
-weekly_premium = base_rate × zone_risk_multiplier × season_factor × tenure_discount
+weekly_premium = base_rate × zone_risk_multiplier × season_factor × tenure_discount × earnings_velocity_factor
 
 base_rate = 35.0  # ₹35 base per week
-coverage_amount = avg_weekly_income × 0.6  # Cover 60% of weekly income
 
 zone_risk_multiplier:
   Derived from zone.flood_risk_score, zone.heat_risk_score, zone.aqi_risk_score
@@ -563,24 +640,34 @@ zone_risk_multiplier:
   Range: 0.8 (safest) → 1.4 (highest risk)
 
 season_factor (Bengaluru calendar):
-  Jan–Feb: 0.9  (dry, cool)
-  Mar–May: 1.1  (pre-monsoon heat)
-  Jun–Sep: 1.5  (monsoon peak)
-  Oct:     1.2  (retreating monsoon)
-  Nov–Dec: 0.95 (post-monsoon)
+  Jan–Feb: 0.9   (dry, cool)
+  Mar–May: 1.1   (pre-monsoon heat)
+  Jun–Sep: 1.5   (monsoon peak)
+  Oct:     1.2   (retreating monsoon)
+  Nov–Dec: 0.95  (post-monsoon)
 
 tenure_discount:
-  < 3 months: 1.0 (no discount)
-  3–6 months: 0.95
-  6–12 months: 0.90
-  > 12 months: 0.80 (max 20% discount)
+  < 3 months:   1.0  (no discount)
+  3–6 months:   0.95
+  6–12 months:  0.90
+  > 12 months:  0.80 (max 20% discount)
+
+earnings_velocity_factor:
+  Based on worker.avg_weekly_income vs zone median income
+  Below median: 0.90 (lower premium, proportionally lower coverage)
+  At median:    1.00
+  1.5× median:  1.15
+  2× median+:   1.25 (capped)
 ```
 
+XGBoost model (`ml/premium_model.joblib`) is trained on seeded historical data and used to produce the final weekly_premium. The formula above defines the features; XGBoost learns the interaction weights.
+
 ### Coverage Amount Calculation
-```
+```python
 coverage_amount = min(avg_weekly_income × 0.6, 1500)  # Cap at ₹1500/week
 hourly_rate = avg_weekly_income / declared_weekly_hours
-payout_per_disruption = hourly_rate × disruption_duration_hours
+payout_per_disruption = hourly_rate × disruption_duration_hours × payout_tier_multiplier
+# payout_tier_multiplier: HALF=0.5, THREE_QUARTER=0.75, FULL=1.0
 ```
 
 ---
@@ -591,42 +678,47 @@ payout_per_disruption = hourly_rate × disruption_duration_hours
 
 Returns `FraudResult(flagged: bool, score: float, flags: list[str])`
 
-Score > 0.7 → MANUAL_REVIEW status on claim.
+Score > 0.7 → MANUAL_REVIEW status on claim. Flagged claims are quarantined, never auto-denied.
 
-### Checks (in order, additive scoring)
+### Checks (additive scoring)
 
 | Check | Score Added | Flag |
 |-------|-------------|------|
-| Worker GPS not in disrupted zone at event time | +0.4 | `GPS_ZONE_MISMATCH` |
+| Worker GPS zone not matching disrupted zone | +0.4 | `GPS_ZONE_MISMATCH` |
 | Worker had active deliveries during disruption window | +0.5 | `ACTIVE_DURING_DISRUPTION` |
-| Same disruption event claimed by same worker twice | +1.0 (auto-reject) | `DUPLICATE_CLAIM` |
+| Same disruption event claimed by same worker twice | +1.0 (auto-quarantine) | `DUPLICATE_CLAIM` |
 | More than 2 claims in past 7 days | +0.3 | `VELOCITY_BREACH` |
 | Claim filed >6 hours after event ended | +0.2 | `LATE_FILING` |
 | Worker income declared > 3σ above zone average | +0.2 | `INCOME_ANOMALY` |
+| T2 cliff-edge score > 0.85 | +0.6 | `T2_MANUFACTURING_ATTACK` |
+| Claim on honeypot event | +1.0 (auto-quarantine + flag all history) | `HONEYPOT_TRIGGERED` |
+| Isolation Forest anomaly score > 0.8 | +0.3 | `ISOLATION_FOREST_ANOMALY` |
 
-**Note:** GPS data is simulated in hackathon. Worker's registered zone is used as proxy location.
+### Isolation Forest (`ml/fraud_model.py`)
+- Trained per-worker on their own claim/activity history
+- Cold start: new workers with <4 weeks history use zone-wide model
+- Features: claim_time_of_day, gap_since_last_claim, income_declared, zone_order_rate_at_claim
+- Scores 0–1: >0.8 adds to fraud score
 
 ---
 
 ## 11. Environment Variables
 
-Copy `.env.example` to `.env` and fill in:
+Copy `.env.example` to `.env`:
 
 ```bash
-# Database
-DATABASE_URL=postgresql://gigshield:gigshield@localhost:5432/gigshield
+# Database (Supabase hosted PostgreSQL)
+DATABASE_URL=postgresql://user:password@db.supabase.co:5432/postgres
 
-# Redis (Celery broker)
+# Redis (for Phase 3 Celery migration — also used for API response caching in Phase 2)
 REDIS_URL=redis://localhost:6379/0
 
 # External APIs
 WAQI_API_TOKEN=your_token_here          # Free at aqicn.org/api
-OPENWEATHER_API_KEY=your_key_here       # Free tier at openweathermap.org
-IMD_API_KEY=your_key_here               # IndianAPI.in free tier
+# Open-Meteo: NO KEY REQUIRED — works with empty string
 
-# LLM
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.1:8b
+# LLM (optional — app falls back to Hinglish templates if not set)
+GROQ_API_KEY=your_key_here              # Free at console.groq.com
 
 # Razorpay (mock — any string works in dev)
 RAZORPAY_KEY_ID=mock_key
@@ -646,59 +738,92 @@ CORS_ORIGINS=http://localhost:5173
 ```yaml
 services:
   postgres:    # Port 5432
-  redis:       # Port 6379
-  ollama:      # Port 11434 (GPU passthrough for NVIDIA)
-  server:      # Port 8000 (FastAPI)
-  worker:      # Celery worker (no exposed port)
-  beat:        # Celery beat scheduler (no exposed port)
+  redis:       # Port 6379 (caching in Phase 2, Celery broker in Phase 3)
+  server:      # Port 8000 (FastAPI + APScheduler)
   client:      # Port 5173 (Vite dev server)
 ```
+
+Note: No `ollama` service. LLM runs via Groq API (cloud). No GPU passthrough needed.
 
 ### One-Command Start
 ```bash
 docker-compose up --build
 ```
 
-### Ollama GPU Note
-The docker-compose.yml includes NVIDIA GPU passthrough for the ollama service. Requires `nvidia-container-toolkit` installed on host. On your machine (4060 Ti) this works out of the box with NVIDIA drivers.
-
-### Manual Model Pull (first time only)
+### Seeding (first run)
 ```bash
-docker exec -it gigshield-ollama-1 ollama pull llama3.1:8b
+docker exec -it rainready-server-1 python scripts/seed_historical_data.py
 ```
 
 ---
 
 ## 13. Testing Guide
 
-### Backend Tests
+### Backend Unit Tests (Pytest)
 ```bash
 cd server
 pytest tests/ -v
 ```
 
 #### Test: Trigger Engine (`tests/test_trigger_engine.py`)
-- `test_both_triggers_required` — Verify payout does NOT fire on T1 alone
-- `test_both_triggers_required_t2_alone` — Verify payout does NOT fire on T2 alone
-- `test_dual_trigger_fires_claim` — Full happy path, both triggers → claim created
+- `test_both_triggers_required` — Payout does NOT fire on T1 alone
+- `test_both_triggers_required_t2_alone` — Payout does NOT fire on T2 alone
+- `test_dual_trigger_fires_claim` — Happy path: both triggers → claim created
 - `test_sachet_red_alert_sets_t1` — SACHET red alert correctly sets T1
 - `test_rain_threshold_t1` — Rain above threshold sets T1, below does not
+- `test_severity_tiers` — Severity score maps to correct payout tier
+- `test_cliff_edge_blocks_t2` — T2 Manufacturing Attack is detected and blocked
+- `test_honeypot_quarantines_claim` — Honeypot event auto-quarantines claimant
 
 #### Test: Premium Calculator (`tests/test_premium_calculator.py`)
-- `test_monsoon_premium_higher_than_dry` — Season factor working
-- `test_tenure_discount_applied` — Discount tiers correct
-- `test_high_risk_zone_higher_premium` — Zone multiplier working
-- `test_coverage_cap_at_1500` — Cap enforced
+- `test_monsoon_premium_higher_than_dry`
+- `test_tenure_discount_applied`
+- `test_high_risk_zone_higher_premium`
+- `test_coverage_cap_at_1500`
+- `test_earnings_velocity_factor_above_median`
 
 #### Test: Fraud Detector (`tests/test_fraud_detector.py`)
-- `test_duplicate_claim_auto_rejected`
+- `test_duplicate_claim_auto_quarantined`
 - `test_gps_mismatch_raises_score`
 - `test_clean_claim_passes`
 - `test_velocity_breach_flagged`
+- `test_isolation_forest_new_worker_uses_zone_model`
 
-### Manual Testing — Disruption Simulation
-Use the dev-only endpoint to simulate a disruption without waiting for real API data:
+#### Test: API Endpoints (`tests/test_api_endpoints.py`)
+- `test_health_check`
+- `test_worker_registration_success`
+- `test_worker_registration_duplicate_phone_409`
+- `test_policy_create_and_retrieve`
+- `test_premium_calculate_preview`
+- `test_disruption_simulate_triggers_claim`
 
+### Postman API Test Suite
+Located in `postman/`. Import both files into Postman:
+
+1. **`RainReady_Phase2.postman_collection.json`** — Full Phase 2 endpoint coverage
+   - Organized into folders: Health, Worker Registration, Policy Management, Claims, Disruptions, Admin, LLM
+   - Auto-captures `worker_id`, `policy_id`, `claim_id`, `zone_id` from responses into environment variables
+   - Each request includes `pm.test()` assertions on status codes, response schema, and business logic
+   - Run via Collection Runner in sequence for full happy path + simulation pipeline
+
+2. **`RainReady.postman_environment.json`** — Pre-configured environment
+   - `base_url`: `http://localhost:8000`
+   - All IDs initially empty — populated automatically by test scripts during run
+   - `koramangala_zone_id`: seeded value (update after first seed run)
+
+**Key test flow (Collection Runner order):**
+```
+Health Check → Register Worker → Calculate Premium → Create Policy
+→ Get Active Disruptions → Simulate Disruption (HEAVY_RAIN, force_t2=true)
+→ Get Worker Claims → Get Claim Detail → Admin: Review Pending Claims
+→ Admin: Financial Summary → LLM: Explain Claim
+```
+
+The Simulate Disruption request triggers the full DTPM pipeline: disruption event created, eligible workers evaluated, claims auto-generated, fraud checked, payout mock initiated, LLM explanation generated.
+
+**Phase 3 additions (planned):** Solidarity Pool endpoints, Forecast Shield opt-in, Trust Tier promotion, Income Smoothing toggle, React Native GPS validation test.
+
+### Manual Simulation via curl
 ```bash
 curl -X POST http://localhost:8000/api/disruptions/simulate \
   -H "Content-Type: application/json" \
@@ -710,8 +835,6 @@ curl -X POST http://localhost:8000/api/disruptions/simulate \
   }'
 ```
 
-This will: create a disruption event, evaluate all active policies in the zone, create claims, run fraud checks, initiate mock payouts, and generate LLM explanations.
-
 ---
 
 ## 14. Build Status
@@ -720,46 +843,94 @@ This will: create a disruption event, evaluate all active policies in the zone, 
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Project scaffold | ⬜ NOT STARTED | |
+| README.md | ✅ STABLE | Phase 2 updated — RainReady branding, Groq, Open-Meteo |
+| SYSTEM.md | ✅ STABLE | v2.0 — Phase 2 ready |
+| Project scaffold (server) | ⬜ NOT STARTED | |
+| Project scaffold (client) | ⬜ NOT STARTED | |
 | DB schema + migrations | ⬜ NOT STARTED | |
-| Seed data (zones, workers) | ⬜ NOT STARTED | |
+| Seed data (zones, workers, 90-day activity) | ⬜ NOT STARTED | |
 | Worker registration API | ⬜ NOT STARTED | |
-| Premium calculator | ⬜ NOT STARTED | |
-| SACHET integration | ⬜ NOT STARTED | |
-| IMD integration | ⬜ NOT STARTED | |
+| Policy management API | ⬜ NOT STARTED | |
+| Premium calculator (XGBoost) | ⬜ NOT STARTED | |
+| Open-Meteo integration | ⬜ NOT STARTED | |
 | WAQI integration | ⬜ NOT STARTED | |
-| Trigger engine | ⬜ NOT STARTED | |
-| Fraud detector | ⬜ NOT STARTED | |
+| SACHET integration | ⬜ NOT STARTED | |
+| Order proxy (T2 simulation) | ⬜ NOT STARTED | |
+| Bandh signal mock | ⬜ NOT STARTED | |
+| Trigger engine (DTPM) | ⬜ NOT STARTED | |
+| Severity scoring | ⬜ NOT STARTED | |
+| Fraud detector (rules + Isolation Forest) | ⬜ NOT STARTED | |
 | Claims service | ⬜ NOT STARTED | |
-| Payout service (mock) | ⬜ NOT STARTED | |
-| LLM service | ⬜ NOT STARTED | |
-| Celery tasks | ⬜ NOT STARTED | |
-| React scaffold | ⬜ NOT STARTED | |
+| Payout service (Razorpay mock) | ⬜ NOT STARTED | |
+| Groq LLM service + template fallback | ⬜ NOT STARTED | |
+| APScheduler jobs | ⬜ NOT STARTED | |
 | Onboarding flow (UI) | ⬜ NOT STARTED | |
 | Worker dashboard (UI) | ⬜ NOT STARTED | |
 | Admin dashboard (UI) | ⬜ NOT STARTED | |
+| Zone trust score dashboard | ⬜ NOT STARTED | |
 | Docker compose | ⬜ NOT STARTED | |
+| Postman collection (Phase 2) | ✅ STABLE | Import from postman/ |
 | Tests — trigger engine | ⬜ NOT STARTED | |
-| Tests — premium calc | ⬜ NOT STARTED | |
-| README.md | ✅ STABLE | Phase 1 submission ready |
-| SYSTEM.md | ✅ STABLE | v1.0 |
+| Tests — premium calculator | ⬜ NOT STARTED | |
+| Tests — fraud detector | ⬜ NOT STARTED | |
+| Tests — API endpoints | ⬜ NOT STARTED | |
 
 **Status key:** ✅ STABLE | 🔄 IN PROGRESS | ⚠️ BROKEN | ⬜ NOT STARTED
 
 ---
 
-## 15. Known Issues & Tech Debt
+## 15. Phase 3 — Scale Additions (April 5–17)
 
-> Updated as issues are discovered.
+Components to build in Phase 3, on top of Phase 2:
 
-| ID | Issue | Component | Priority |
-|----|-------|-----------|----------|
-| T001 | T2 activity data is synthetic — needs real platform proxy in production | Trigger Engine | Low (by design for hackathon) |
-| T002 | IMD API requires IP whitelisting — use OpenWeatherMap as primary in dev | IMD Integration | High |
-| T003 | Ollama cold start ~8 seconds — add startup warmup call | LLM Service | Medium |
-| T004 | GPS location is zone-proxy only — real GPS would require mobile app | Fraud Detector | Low (by design) |
+### New Backend
+- **`server/services/forecast_shield.py`** — Reads Open-Meteo 6-hour forecast, fires proactive FCM push if >70% breach probability
+- **`server/services/solidarity_pool.py`** — Manages pooled fund; activates when ≥30% of zone workers affected simultaneously
+- **`server/services/income_smoothing.py`** — Opt-in buffer: retain ₹50–100 in high-earning weeks, auto-cover next premium
+- **`server/services/trust_tier.py`** — Weekly trust tier recompute per worker based on GPS validation history + claim patterns
+- **`server/adaptive/zone_recalibrator.py`** — Weekly cron: recompute zone_config thresholds from rolling 90-day baseline
+- **`server/integrations/fcm.py`** — Firebase Cloud Messaging push notification sender
+- **`server/integrations/twilio_mock.py`** — Twilio SMS sandbox for payout confirmation SMS
+- Migrate APScheduler → Celery + Redis for distributed multi-zone polling
+
+### New API Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/workers/{id}/forecast-shield/opt-in` | Opt into enhanced pre-event coverage |
+| POST | `/api/workers/{id}/income-smoothing/toggle` | Enable/disable income smoothing |
+| GET | `/api/admin/solidarity-pool` | Pool balance, drawdown events |
+| GET | `/api/admin/trust-tiers` | Trust tier distribution across workers |
+| GET | `/api/admin/adaptive-thresholds` | Zone config history + next recalibration |
+
+### New Frontend
+- React Native + Expo worker app (replaces PWA)
+- Real device GPS validation via Expo Location API
+- FCM push notifications (Forecast Shield alerts)
+- Income Smoothing toggle on worker dashboard
+- Trust Tier badge + payout speed indicator
+
+### Postman Phase 3 Collection
+Add to `postman/RainReady_Phase3.postman_collection.json`:
+- Forecast Shield opt-in + FCM push verification
+- Solidarity Pool activation (simulate ≥30% zone workers affected)
+- Income Smoothing toggle + premium auto-cover flow
+- Trust Tier promotion after clean claim history
+- Adaptive threshold recalibration trigger (admin)
+- Celery task queue health check
 
 ---
 
-*SYSTEM.md Version 1.0 — Phase 1 Baseline*
-*Next update due: after Phase 1 scaffold is stable and tested*
+## 16. Known Issues & Tech Debt
+
+| ID | Issue | Component | Priority |
+|----|-------|-----------|----------|
+| T001 | T2 activity data is synthetic — needs real platform API in production | Order Proxy | Low (by design for hackathon) |
+| T002 | GPS location is zone-proxy only — real GPS requires mobile app (Phase 3) | Fraud Detector | Low (by design) |
+| T003 | Groq free tier rate limit ~30 req/min — add request queue if demo spams LLM | LLM Service | Medium |
+| T004 | Isolation Forest cold start for new workers uses zone model — may over-flag new accounts | Fraud Detector | Low |
+| T005 | APScheduler loses state on server restart — honeypot schedule must reinitialize | Scheduler | Medium |
+
+---
+
+*SYSTEM.md Version 2.0 — Phase 2 Build Ready*
+*Next update due: after first component reaches STABLE*

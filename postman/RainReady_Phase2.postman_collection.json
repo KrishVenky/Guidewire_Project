@@ -1,0 +1,1295 @@
+{
+  "info": {
+    "_postman_id": "rainready-phase2-v1",
+    "name": "RainReady — Phase 2",
+    "description": "Full API test suite for RainReady Phase 2 (Automation & Protection).\n\nRun via Collection Runner in sequence. The Simulate Disruption request triggers the complete DTPM pipeline: disruption event → claim auto-generation → fraud check → Razorpay mock payout → LLM Hinglish explanation.\n\nEnvironment variables are auto-captured from responses — import RainReady.postman_environment.json and select it before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response has status field', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('status');",
+                  "  pm.expect(body.status).to.eql('ok');",
+                  "});",
+                  "pm.test('DB connected', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('db');",
+                  "  pm.expect(body.db).to.eql('connected');",
+                  "});",
+                  "pm.test('Response time < 500ms', () => pm.expect(pm.response.responseTime).to.be.below(500));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Verifies server is up and DB is connected."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Worker Registration",
+      "item": [
+        {
+          "name": "Register New Worker",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Response has worker_id', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('id');",
+                  "  pm.expect(body.id).to.be.a('string').and.have.length.above(0);",
+                  "  pm.environment.set('worker_id', body.id);",
+                  "});",
+                  "pm.test('Worker has correct phone', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.phone).to.eql(pm.environment.get('test_phone'));",
+                  "});",
+                  "pm.test('Worker is_active by default', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.is_active).to.be.true;",
+                  "});",
+                  "pm.test('Worker has trust_tier NEW_PARTNER', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.trust_tier).to.eql('NEW_PARTNER');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate unique phone for this test run",
+                  "const ts = Date.now().toString().slice(-8);",
+                  "const phone = '9' + ts;",
+                  "pm.environment.set('test_phone', phone);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Ravi Kumar\",\n  \"phone\": \"{{test_phone}}\",\n  \"upi_id\": \"ravi.kumar@upi\",\n  \"platform\": \"ZOMATO\",\n  \"zone_id\": \"{{koramangala_zone_id}}\",\n  \"avg_weekly_income\": 4200,\n  \"declared_weekly_hours\": 50\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/workers/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "workers", "register"]
+            },
+            "description": "Registers a new delivery worker. Auto-sets worker_id in environment."
+          }
+        },
+        {
+          "name": "Register Duplicate Phone (expect 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('Error message present', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('detail');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Duplicate User\",\n  \"phone\": \"{{test_phone}}\",\n  \"upi_id\": \"duplicate@upi\",\n  \"platform\": \"SWIGGY\",\n  \"zone_id\": \"{{koramangala_zone_id}}\",\n  \"avg_weekly_income\": 3000,\n  \"declared_weekly_hours\": 40\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/workers/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "workers", "register"]
+            },
+            "description": "Attempts registration with already-registered phone. Must return 409."
+          }
+        },
+        {
+          "name": "Get Worker Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Correct worker returned', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.id).to.eql(pm.environment.get('worker_id'));",
+                  "  pm.expect(body.full_name).to.eql('Ravi Kumar');",
+                  "});",
+                  "pm.test('Worker schema complete', () => {",
+                  "  const body = pm.response.json();",
+                  "  ['id','full_name','phone','upi_id','platform','zone_id','avg_weekly_income','trust_tier','is_active'].forEach(field => {",
+                  "    pm.expect(body).to.have.property(field);",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/workers/{{worker_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "workers", "{{worker_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Worker Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('UPI updated', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.upi_id).to.eql('ravi.kumar.updated@upi');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"upi_id\": \"ravi.kumar.updated@upi\",\n  \"avg_weekly_income\": 4500\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/workers/{{worker_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "workers", "{{worker_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Non-Existent Worker (expect 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/workers/00000000-0000-0000-0000-000000000000",
+              "host": ["{{base_url}}"],
+              "path": ["api", "workers", "00000000-0000-0000-0000-000000000000"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Policy Management",
+      "item": [
+        {
+          "name": "Calculate Premium Preview",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Premium is a positive number', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('weekly_premium');",
+                  "  pm.expect(body.weekly_premium).to.be.a('number').and.above(0);",
+                  "});",
+                  "pm.test('Premium within plausible range (₹28–₹100)', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.weekly_premium).to.be.within(28, 100);",
+                  "});",
+                  "pm.test('Response includes breakdown', () => {",
+                  "  const body = pm.response.json();",
+                  "  ['base_rate','zone_multiplier','season_factor','tenure_discount','coverage_amount'].forEach(field => {",
+                  "    pm.expect(body).to.have.property(field);",
+                  "  });",
+                  "});",
+                  "pm.test('Coverage capped at 1500', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.coverage_amount).to.be.at.most(1500);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/policies/premium/calculate?worker_id={{worker_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "policies", "premium", "calculate"],
+              "query": [
+                {"key": "worker_id", "value": "{{worker_id}}"}
+              ]
+            },
+            "description": "Returns premium breakdown without creating a policy. Used in onboarding preview step."
+          }
+        },
+        {
+          "name": "Create Policy",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Policy ID captured', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('id');",
+                  "  pm.environment.set('policy_id', body.id);",
+                  "});",
+                  "pm.test('Policy status ACTIVE', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('ACTIVE');",
+                  "});",
+                  "pm.test('Weekly premium is set', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.weekly_premium).to.be.a('number').and.above(0);",
+                  "});",
+                  "pm.test('Coverage amount is set', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.coverage_amount).to.be.a('number').and.above(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"worker_id\": \"{{worker_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/policies/create",
+              "host": ["{{base_url}}"],
+              "path": ["api", "policies", "create"]
+            },
+            "description": "Creates an active policy for the worker. Premium is auto-calculated. Sets policy_id env var."
+          }
+        },
+        {
+          "name": "Get Policy Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Correct policy returned', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.id).to.eql(pm.environment.get('policy_id'));",
+                  "  pm.expect(body.worker_id).to.eql(pm.environment.get('worker_id'));",
+                  "});",
+                  "pm.test('Policy schema complete', () => {",
+                  "  const body = pm.response.json();",
+                  "  ['id','worker_id','weekly_premium','coverage_amount','status','start_date','total_premiums_paid','total_payouts_received'].forEach(f => {",
+                  "    pm.expect(body).to.have.property(f);",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/policies/{{policy_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "policies", "{{policy_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Worker's Policies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an('array');",
+                  "});",
+                  "pm.test('Contains the created policy', () => {",
+                  "  const body = pm.response.json();",
+                  "  const policyId = pm.environment.get('policy_id');",
+                  "  pm.expect(body.some(p => p.id === policyId)).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/policies/worker/{{worker_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "policies", "worker", "{{worker_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Duplicate Policy (expect 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 409 — worker already has active policy', () => pm.response.to.have.status(409));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"worker_id\": \"{{worker_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/policies/create",
+              "host": ["{{base_url}}"],
+              "path": ["api", "policies", "create"]
+            }
+          }
+        },
+        {
+          "name": "Pause Policy",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Policy status PAUSED', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('PAUSED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/policies/{{policy_id}}/pause",
+              "host": ["{{base_url}}"],
+              "path": ["api", "policies", "{{policy_id}}", "pause"]
+            }
+          }
+        },
+        {
+          "name": "Reactivate Policy (un-pause)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Policy status ACTIVE again', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('ACTIVE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/policies/{{policy_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "policies", "{{policy_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Disruptions",
+      "item": [
+        {
+          "name": "Get Active Disruptions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/disruptions/active",
+              "host": ["{{base_url}}"],
+              "path": ["api", "disruptions", "active"]
+            }
+          }
+        },
+        {
+          "name": "Get Zone Disruptions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array', () => {",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/disruptions/zone/{{koramangala_zone_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "disruptions", "zone", "{{koramangala_zone_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Simulate Disruption — HEAVY_RAIN (triggers full DTPM pipeline)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Disruption event created', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('disruption_event_id');",
+                  "  pm.environment.set('disruption_event_id', body.disruption_event_id);",
+                  "});",
+                  "pm.test('Both triggers fired', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.t1_confirmed).to.be.true;",
+                  "  pm.expect(body.t2_confirmed).to.be.true;",
+                  "  pm.expect(body.dual_trigger_fired).to.be.true;",
+                  "});",
+                  "pm.test('Severity score computed', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.severity_score).to.be.a('number').and.within(0, 100);",
+                  "});",
+                  "pm.test('Claims generated', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('claims_created');",
+                  "  pm.expect(body.claims_created).to.be.a('number').and.above(0);",
+                  "});",
+                  "pm.test('Payout tier not NONE (72.5mm/hr should be severe)', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.payout_tier).to.not.eql('NONE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zone_id\": \"{{koramangala_zone_id}}\",\n  \"event_type\": \"HEAVY_RAIN\",\n  \"raw_value\": 72.5,\n  \"force_t2\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/disruptions/simulate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "disruptions", "simulate"]
+            },
+            "description": "Dev-only endpoint. Fires a mock disruption event and runs the full pipeline: trigger evaluation → claim creation → fraud check → Razorpay mock payout → LLM explanation."
+          }
+        },
+        {
+          "name": "Simulate Disruption — EXTREME_HEAT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Event type is EXTREME_HEAT', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.event_type).to.eql('EXTREME_HEAT');",
+                  "});",
+                  "pm.test('Source is OPEN_METEO', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.source).to.eql('OPEN_METEO');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zone_id\": \"{{koramangala_zone_id}}\",\n  \"event_type\": \"EXTREME_HEAT\",\n  \"raw_value\": 46.2,\n  \"force_t2\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/disruptions/simulate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "disruptions", "simulate"]
+            }
+          }
+        },
+        {
+          "name": "Simulate Disruption — HIGH_AQI",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Event type is HIGH_AQI', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.event_type).to.eql('HIGH_AQI');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zone_id\": \"{{koramangala_zone_id}}\",\n  \"event_type\": \"HIGH_AQI\",\n  \"raw_value\": 342,\n  \"force_t2\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/disruptions/simulate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "disruptions", "simulate"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Bandh Signal ON",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Bandh active for zone', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.bandh_active).to.be.true;",
+                  "  pm.expect(body.zone_id).to.eql(pm.environment.get('koramangala_zone_id'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zone_id\": \"{{koramangala_zone_id}}\",\n  \"active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/disruptions/bandh/toggle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "disruptions", "bandh", "toggle"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Bandh Signal OFF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Bandh deactivated', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.bandh_active).to.be.false;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zone_id\": \"{{koramangala_zone_id}}\",\n  \"active\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/disruptions/bandh/toggle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "disruptions", "bandh", "toggle"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Claims",
+      "item": [
+        {
+          "name": "Get Worker Claims",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array', () => {",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});",
+                  "pm.test('At least one claim exists (from simulation)', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.length).to.be.above(0);",
+                  "  pm.environment.set('claim_id', body[0].id);",
+                  "});",
+                  "pm.test('Claim has required fields', () => {",
+                  "  const claim = pm.response.json()[0];",
+                  "  ['id','worker_id','policy_id','disruption_event_id','status','payout_amount','fraud_score','llm_explanation'].forEach(f => {",
+                  "    pm.expect(claim).to.have.property(f);",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/claims/worker/{{worker_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "claims", "worker", "{{worker_id}}"]
+            },
+            "description": "Run after Simulate Disruption. Captures claim_id for subsequent tests."
+          }
+        },
+        {
+          "name": "Get Single Claim Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Correct claim returned', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.id).to.eql(pm.environment.get('claim_id'));",
+                  "});",
+                  "pm.test('LLM explanation in Hinglish (non-empty)', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.llm_explanation).to.be.a('string').and.have.length.above(10);",
+                  "});",
+                  "pm.test('Fraud score is 0–1', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.fraud_score).to.be.within(0, 1);",
+                  "});",
+                  "pm.test('Payout amount is non-negative', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.payout_amount).to.be.at.least(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/claims/{{claim_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "claims", "{{claim_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Submit Post-Payout Trust Survey",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Survey recorded', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('survey_recorded');",
+                  "  pm.expect(body.survey_recorded).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"understood_reason\": true,\n  \"payout_correct\": true,\n  \"trust_score\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/claims/{{claim_id}}/survey",
+              "host": ["{{base_url}}"],
+              "path": ["api", "claims", "{{claim_id}}", "survey"]
+            },
+            "description": "3-tap post-payout trust survey. Contributes to zone trust score on admin dashboard."
+          }
+        },
+        {
+          "name": "Admin — Review Claim (Approve)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Claim status updated', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(['APPROVED','PAID']).to.include(body.status);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"APPROVE\",\n  \"reviewer_note\": \"Verified via zone activity data and GPS cross-check. Claim is legitimate.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/claims/{{claim_id}}/review",
+              "host": ["{{base_url}}"],
+              "path": ["api", "claims", "{{claim_id}}", "review"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Worker Dashboard",
+      "item": [
+        {
+          "name": "Get Worker Dashboard (aggregated)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Dashboard has all required sections', () => {",
+                  "  const body = pm.response.json();",
+                  "  ['worker','active_policy','recent_claims','active_disruptions','earnings_protected'].forEach(section => {",
+                  "    pm.expect(body).to.have.property(section);",
+                  "  });",
+                  "});",
+                  "pm.test('Active policy matches created policy', () => {",
+                  "  const body = pm.response.json();",
+                  "  if (body.active_policy) {",
+                  "    pm.expect(body.active_policy.id).to.eql(pm.environment.get('policy_id'));",
+                  "  }",
+                  "});",
+                  "pm.test('Earnings protected is non-negative', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.earnings_protected).to.be.at.least(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/workers/{{worker_id}}/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["api", "workers", "{{worker_id}}", "dashboard"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Admin Dashboard",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Dashboard has key metrics', () => {",
+                  "  const body = pm.response.json();",
+                  "  ['total_active_policies','total_claims_this_week','total_payouts_this_week','loss_ratio','pending_review_count'].forEach(metric => {",
+                  "    pm.expect(body).to.have.property(metric);",
+                  "  });",
+                  "});",
+                  "pm.test('Loss ratio is 0–1', () => {",
+                  "  const body = pm.response.json();",
+                  "  if (body.loss_ratio !== null) {",
+                  "    pm.expect(body.loss_ratio).to.be.within(0, 10);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "dashboard"]
+            }
+          }
+        },
+        {
+          "name": "Admin — Pending Claims Queue",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array', () => {",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});",
+                  "pm.test('All returned claims are MANUAL_REVIEW status', () => {",
+                  "  pm.response.json().forEach(claim => {",
+                  "    pm.expect(claim.status).to.eql('MANUAL_REVIEW');",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/claims/pending",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "claims", "pending"]
+            }
+          }
+        },
+        {
+          "name": "Admin — All Workers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array with at least the test worker', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an('array');",
+                  "  pm.expect(body.length).to.be.above(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/workers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "workers"]
+            }
+          }
+        },
+        {
+          "name": "Admin — Financial Summary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Financial summary has required fields', () => {",
+                  "  const body = pm.response.json();",
+                  "  ['total_premiums_collected','total_payouts_disbursed','loss_ratio','claims_by_status','payouts_by_zone'].forEach(f => {",
+                  "    pm.expect(body).to.have.property(f);",
+                  "  });",
+                  "});",
+                  "pm.test('Total premiums >= 0', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.total_premiums_collected).to.be.at.least(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/financial-summary",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "financial-summary"]
+            }
+          }
+        },
+        {
+          "name": "Admin — Zone Trust Scores",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array', () => {",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});",
+                  "pm.test('Trust scores are 1–5', () => {",
+                  "  pm.response.json().forEach(zone => {",
+                  "    if (zone.avg_trust_score !== null) {",
+                  "      pm.expect(zone.avg_trust_score).to.be.within(1, 5);",
+                  "    }",
+                  "  });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/zone-trust-scores",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "zone-trust-scores"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "LLM",
+      "item": [
+        {
+          "name": "Explain Claim (Hinglish)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Explanation is non-empty string', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('explanation');",
+                  "  pm.expect(body.explanation).to.be.a('string').and.have.length.above(20);",
+                  "});",
+                  "pm.test('Used_fallback field present', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('used_fallback');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"claim_id\": \"{{claim_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/llm/explain-claim",
+              "host": ["{{base_url}}"],
+              "path": ["api", "llm", "explain-claim"]
+            },
+            "description": "Returns Hinglish explanation of a claim. used_fallback=true if no Groq API key is set (still works)."
+          }
+        },
+        {
+          "name": "Onboarding Chat — Coverage Question",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response message non-empty', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('message');",
+                  "  pm.expect(body.message).to.be.a('string').and.have.length.above(10);",
+                  "});",
+                  "pm.test('used_fallback field present', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('used_fallback');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Bhaiya baarish mein kya milega?\",\n  \"worker_id\": \"{{worker_id}}\",\n  \"conversation_history\": []\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/llm/onboarding-chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "llm", "onboarding-chat"]
+            }
+          }
+        },
+        {
+          "name": "Onboarding Chat — Off-Topic Redirect",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is a redirect, not irrelevant info', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.message).to.be.a('string').and.have.length.above(10);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Stock market mein kaise invest karein?\",\n  \"worker_id\": \"{{worker_id}}\",\n  \"conversation_history\": []\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/llm/onboarding-chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "llm", "onboarding-chat"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Fraud — Edge Cases",
+      "item": [
+        {
+          "name": "Simulate Paused Policy Worker — No Claim Generated",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('claims_created is 0 for paused-policy workers', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('skipped_workers');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zone_id\": \"{{whitefield_zone_id}}\",\n  \"event_type\": \"HEAVY_RAIN\",\n  \"raw_value\": 55.0,\n  \"force_t2\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/disruptions/simulate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "disruptions", "simulate"]
+            },
+            "description": "Disruption in Whitefield. Test worker is in Koramangala — should not receive a claim. Confirms zone isolation."
+          }
+        },
+        {
+          "name": "Simulate Below-Threshold Disruption — No Payout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Severity score below 41 — no payout tier', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.payout_tier).to.eql('NONE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zone_id\": \"{{koramangala_zone_id}}\",\n  \"event_type\": \"HEAVY_RAIN\",\n  \"raw_value\": 15.0,\n  \"force_t2\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/disruptions/simulate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "disruptions", "simulate"]
+            },
+            "description": "Low rainfall, no T2 forced. Severity should be <41 → payout_tier=NONE."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ]
+}
