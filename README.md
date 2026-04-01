@@ -1,4 +1,4 @@
-# RainReady — AI-Powered Parametric Income Insurance for India's Delivery Workers
+# RainReady - AI-Powered Parametric Income Insurance for India's Delivery Workers
 
 > Guidewire DEVTrails 2026 | Unicorn Chase
 > Protecting the income of Zomato, Swiggy & Blinkit delivery partners against uncontrollable external disruptions.
