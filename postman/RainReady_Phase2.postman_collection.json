@@ -1062,6 +1062,42 @@
           }
         },
         {
+          "name": "Admin — Financial Summary (with avg payout time)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has avg_payout_seconds field', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('avg_payout_seconds');",
+                  "});",
+                  "pm.test('Loss ratio is numeric', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.loss_ratio).to.be.a('number');",
+                  "});",
+                  "pm.test('payouts_by_zone is array', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.payouts_by_zone).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/financial-summary",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "financial-summary"]
+            },
+            "description": "Returns total premiums, payouts, loss ratio, claims by status, payouts by zone, and avg_payout_seconds — demonstrates sub-minute settlement time."
+          }
+        },
+        {
           "name": "Admin — Zone Trust Scores",
           "event": [
             {
@@ -1207,6 +1243,169 @@
               "host": ["{{base_url}}"],
               "path": ["api", "llm", "onboarding-chat"]
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Actuarial — Stress Tests & Controls",
+      "item": [
+        {
+          "name": "Stress Test — Monsoon 14-day (default)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns all required actuarial fields', () => {",
+                  "  const body = pm.response.json();",
+                  "  ['scenario','days','total_events_projected','active_policies','total_projected_payout','premiums_over_period','bcr','bcr_healthy','bcr_warning','bcr_critical','enrolment_suspend_triggered','interpretation'].forEach(f => {",
+                  "    pm.expect(body).to.have.property(f);",
+                  "  });",
+                  "});",
+                  "pm.test('BCR is numeric and positive', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.bcr).to.be.a('number').and.at.least(0);",
+                  "});",
+                  "pm.test('Scenario label is correct', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.scenario).to.eql('14-day Monsoon');",
+                  "});",
+                  "pm.test('interpretation is non-empty', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.interpretation).to.be.a('string').and.have.length.above(5);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/stress-test?scenario=monsoon_14day",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "stress-test"],
+              "query": [{"key": "scenario", "value": "monsoon_14day"}]
+            },
+            "description": "Projects total claims and BCR for a 14-day sustained heavy rain event across all active policies. BCR target: 0.55–0.70."
+          }
+        },
+        {
+          "name": "Stress Test — Heatwave 7-day",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Scenario is heatwave', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.scenario).to.eql('7-day Heatwave');",
+                  "  pm.expect(body.days).to.eql(7);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/stress-test?scenario=heatwave_7day",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "stress-test"],
+              "query": [{"key": "scenario", "value": "heatwave_7day"}]
+            }
+          }
+        },
+        {
+          "name": "Stress Test — AQI Spike 3-day",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Scenario is AQI spike', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.scenario).to.eql('3-day Hazardous AQI');",
+                  "  pm.expect(body.days).to.eql(3);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/stress-test?scenario=aqi_spike_3day",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "stress-test"],
+              "query": [{"key": "scenario", "value": "aqi_spike_3day"}]
+            }
+          }
+        },
+        {
+          "name": "Stress Test — Invalid Scenario (expect 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 for unknown scenario', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/admin/stress-test?scenario=invalid_scenario",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "stress-test"],
+              "query": [{"key": "scenario", "value": "invalid_scenario"}]
+            }
+          }
+        },
+        {
+          "name": "AQI Threshold — Whitefield fires lower than HSR (ward-level proof)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('HIGH_AQI event fires in Whitefield at AQI 285 (below city baseline of 300)', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.t1_confirmed).to.be.true;",
+                  "  pm.expect(body.event_type).to.eql('HIGH_AQI');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zone_id\": \"{{whitefield_zone_id}}\",\n  \"event_type\": \"HIGH_AQI\",\n  \"raw_value\": 285,\n  \"force_t2\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/disruptions/simulate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "disruptions", "simulate"]
+            },
+            "description": "Whitefield aqi_threshold=285 (derived from aqi_risk_score=0.65). AQI 285 should fire in Whitefield but would NOT fire in HSR Layout (threshold=300). Demonstrates ward-level, not city-average thresholds."
           }
         }
       ]
