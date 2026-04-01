@@ -1,0 +1,139 @@
+RainReady — Building Insurance That Pays You Before You Even File a Claim
+
+Phase 2 of Guidewire DEVTrails 2026. We started with six weeks, ₹1,00,000 in seed capital, and a problem that actually matters. We now have a working product. This is the updated story.
+
+(Quick note: we were GigShield in Phase 1. We're RainReady now. Name change, same mission. Moving on.)
+
+* * *
+
+How It Started
+
+The problem statement dropped and we read it three times. Four times.
+
+Build an AI-enabled parametric insurance platform for India's gig delivery workers. Protect income against external disruptions—weather, bandhs, pollution. Weekly pricing. Income loss only.
+
+It clicked immediately. This isn't a contrived hackathon scenario. This is a real gap affecting millions of people right now.
+
+Picture this: it's monsoon season. A Zomato rider is sitting at home. It's raining at 60mm/hr. Visibility is terrible. The app stops assigning orders. He watches ₹600 disappear—maybe more if it continues. No insurance covers this. The platform covers liability during rides. The government covers accidents. Nobody covers the actual money problem—an entire day's wages, gone to a rainstorm he had absolutely no control over.
+
+That's where RainReady started. In a room, figuring out what this problem actually looks like.
+
+* * *
+
+The First Decision That Actually Mattered
+
+Before we wrote any code—seriously, before we even opened a terminal—we had to understand what parametric insurance is and why it's the only model that makes sense here.
+
+Traditional insurance: something bad happens → fill out forms → someone investigates → eventually, maybe, you get paid. Days. Weeks. For a delivery worker, by the time the money arrives they've already borrowed from someone else.
+
+Parametric insurance: rain hits a threshold → money moves automatically. No forms. No investigation. No waiting. The payout arrives before the worker even thinks about filing a claim.
+
+That decision was easy. What came next was not.
+
+* * *
+
+The Problem Nobody Actually Talks About
+
+Here's what breaks most parametric systems: basis risk.
+
+It rained heavily in Koramangala, but Swiggy was still assigning orders. Or it rained on one side of the zone and the worker's area was fine. A single weather trigger is blunt. It doesn't know what's actually happening to income on the ground.
+
+We spent real time on this. Genuinely stuck.
+
+The breakthrough: we don't just measure if something bad happened. We measure if it actually killed income.
+
+The Dual-Trigger Parametric Model.
+
+T1 — Disruption is real. Open-Meteo records 50+ mm/hr rain. WAQI reports hazardous AQI. SACHET/NDMA issues a Red district alert. Official, verifiable.
+
+T2 — Income actually stopped. Zone order volume drops 60%+ vs. 7-day rolling average. Measured, not guessed.
+
+Both fire simultaneously → payout. One without the other → nothing. Together they're near-impossible to fake and dramatically more accurate than either alone. This is the whole system. Everything else sits on top of this.
+
+* * *
+
+The Architecture Debate
+
+The temptation in a hackathon: put ML everywhere. Let the model decide payouts. Sounds impressive. Would be a disaster.
+
+An ML trigger is a black box. A payout fires and nobody—not the insurer, the auditor, the worker—can explain why. Regulators hate this. Workers who don't get paid and can't understand why hate this more.
+
+Hard call: the trigger engine is deterministic. Zero ML. Every decision is explainable.
+
+ML lives where it belongs: premium calculation (XGBoost trained on 90-day zone data) and fraud detection (Isolation Forest anomaly scoring). Probabilistic outputs in probabilistic places.
+
+The LLM? Completely separate. One job: explain in Hinglish what the engine already decided. "Aaj Whitefield mein 67mm/hr baarish tha—tera coverage active tha, isliye ₹340 transfer ho gaya." That's it. Never touches financial logic.
+
+* * *
+
+Phase 2: We Actually Built It
+
+This is where the update gets interesting. Phase 1 was the thinking. Phase 2 is the working product. Here's what's actually running right now:
+
+The backend is live. FastAPI on Python 3.12, connected to Supabase PostgreSQL. On startup it automatically creates all DB tables, seeds 4 Bengaluru zones (Whitefield, Koramangala, HSR Layout, Indiranagar), trains both ML models, and starts the APScheduler polling every 5 minutes per zone. Fully automatic, no manual setup.
+
+The ML models train on startup. The XGBoost premium model runs on seeded 90-day historical data the moment the server boots. Isolation Forest fraud model does the same. Both serialized with joblib so they load instantly on subsequent starts.
+
+All 5 disruption triggers are live. Heavy rain via Open-Meteo, extreme heat, hazardous AQI via WAQI, NDMA district alerts via SACHET RSS, and a manual bandh toggle—all feeding the dual-trigger engine in real time.
+
+The full claims pipeline runs automatically. Disruption fires → find all active policies in the zone → fraud check per worker → compute payout via earnings velocity → auto-approve or flag for manual review → Razorpay mock payout → Groq LLM Hinglish explanation. Zero touch.
+
+The React PWA is working. 5-step onboarding flow (phone, details, income & UPI, premium preview, done). Worker dashboard with live policy status, claim history, and payout amounts. Everything connected to the live backend.
+
+The admin dashboard is fully functional. Four tabs: Overview (live stats), Claims (manual review queue), Simulate (fire any disruption in any zone), and Zones (bandh controls with real-time active state). The simulate tab is what makes demos sing—pick a zone, pick HEAVY_RAIN, set value to 72.5, force T2, fire. Watch the whole pipeline run in real time.
+
+* * *
+
+The Demo Flow
+
+This is what the end-to-end looks like right now:
+
+1. Register as a Zomato worker in Whitefield via the 5-step onboarding
+2. Go to /admin → PIN admin123
+3. Simulate → Whitefield → HEAVY_RAIN → 72.5 → Force T2 → Fire
+4. T1 + T2 confirm → claim auto-created → fraud check passes → Razorpay mock payout fires → LLM generates Hinglish explanation
+5. Back on worker dashboard → claim appears with explanation and exact payout amount
+
+Under two minutes. No claim form. No waiting.
+
+* * *
+
+The Ideas We're Still Excited About
+
+Adaptive thresholds. Nothing hardcoded. Every zone has its own threshold config, recalibrated weekly against a rolling baseline. Whitefield in January is different from July. Climate shifts are handled automatically.
+
+Earnings velocity profiling. A disruption at 7pm Friday in Koramangala pays different from 2pm Tuesday. Income loss insurance that actually reflects real income loss.
+
+The trust feedback loop. After every payout, a 3-question Hinglish survey fires. Responses aggregate into a zone trust score on the admin dashboard. If the score drops, the LLM template for that zone gets flagged. We're measuring if workers believe the product works, not just if it technically functions.
+
+* * *
+
+What We Deliberately Don't Cover
+
+Single restaurant closures: not in scope. A broken stove doesn't trigger us. Zone-wide LPG shortage that shuts most kitchens? T2 fires naturally. We measure outcomes, not causes.
+
+Pandemic-scale disruptions: 4-week consecutive trigger cap, proportional Solidarity Pool drawdown, then manual review and policy suspension with reserves protected. A ₹35/week product cannot absorb a pandemic. Knowing your limits is real insurance design.
+
+* * *
+
+What's Next — Phase 3
+
+React Native + Expo replacing the web PWA. Real GPS zone validation. Forecast Shield—predictive alerts the night before a disruption so workers can upgrade coverage before the rain hits. Solidarity Pool for bandh-scale events. Income Smoothing as a passive buffer. Celery + Redis replacing APScheduler for production-scale polling. Twilio SMS for workers without smartphones.
+
+* * *
+
+The Team
+
+Five students from PES University with zero insurance domain experience. Chaotic and committed.
+
+Shubhang, Puranddar, Kanishk, Nahush, and Krishna—still figuring it out, shipping anyway.
+
+* * *
+
+Built With
+
+fastapi • python • supabase • postgresql • react • tailwindcss • scikit-learn • xgboost • groq • llama-3 • apscheduler • open-meteo • waqi • sachet • docker • razorpay
+
+* * *
+
+RainReady is not affiliated with Zomato, Swiggy, Blinkit, or Razorpay. All worker data is simulated for hackathon purposes. Built for Guidewire DEVTrails 2026.

@@ -12,6 +12,7 @@ from ..models.disruption_event import DisruptionEvent
 from ..models.zone import Zone
 from ..schemas.worker import WorkerResponse
 from ..integrations.order_proxy import is_bandh_active
+from ..services.premium_calculator import compute_payout
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -108,12 +109,18 @@ def financial_summary(db: Session = Depends(get_db)):
             "total_payout": round(zone_payout, 2),
         })
 
+    avg_seconds = db.query(func.avg(Payout.seconds_to_complete)).filter(
+        Payout.status == PayoutStatus.COMPLETED,
+        Payout.seconds_to_complete != None,
+    ).scalar()
+
     return {
         "total_premiums_collected": round(total_premiums, 2),
         "total_payouts_disbursed": round(total_payouts, 2),
         "loss_ratio": round(loss_ratio, 4),
         "claims_by_status": claims_by_status,
         "payouts_by_zone": payouts_by_zone,
+        "avg_payout_seconds": round(avg_seconds, 2) if avg_seconds else None,
     }
 
 
@@ -148,6 +155,86 @@ def zone_trust_scores(db: Session = Depends(get_db)):
         })
 
     return result
+
+
+@router.get("/stress-test")
+def stress_test(
+    scenario: str = "monsoon_14day",
+    db: Session = Depends(get_db),
+):
+    """
+    Actuarial stress test: project total claims + payouts + BCR for a sustained
+    disruption scenario across all active policies.
+
+    scenario options:
+      monsoon_14day  — 14-day sustained heavy rain (payout tier FULL, 3 events/day)
+      heatwave_7day  — 7-day extreme heat (payout tier THREE_QUARTER, 2 events/day)
+      aqi_spike_3day — 3-day hazardous AQI (payout tier HALF, 1 event/day)
+    """
+    SCENARIOS = {
+        "monsoon_14day": {"days": 14, "events_per_day": 3, "payout_tier": "FULL",
+                          "disruption_hours": 4.0, "label": "14-day Monsoon"},
+        "heatwave_7day": {"days": 7, "events_per_day": 2, "payout_tier": "THREE_QUARTER",
+                          "disruption_hours": 5.0, "label": "7-day Heatwave"},
+        "aqi_spike_3day": {"days": 3, "events_per_day": 1, "payout_tier": "HALF",
+                           "disruption_hours": 8.0, "label": "3-day Hazardous AQI"},
+    }
+    if scenario not in SCENARIOS:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Unknown scenario. Choose from: {list(SCENARIOS)}")
+
+    s = SCENARIOS[scenario]
+    total_events = s["days"] * s["events_per_day"]
+
+    active_policies = db.query(Policy).filter(Policy.status == PolicyStatus.ACTIVE).all()
+    total_premiums = sum(p.weekly_premium for p in active_policies)
+    weekly_premium_pool = total_premiums  # one week of collected premiums
+
+    total_projected_payout = 0.0
+    per_zone = {}
+
+    for policy in active_policies:
+        worker = db.query(Worker).filter(Worker.id == policy.worker_id).first()
+        if not worker:
+            continue
+
+        # Each event fires once per worker per event (duplicate guard in real pipeline)
+        payout_per_event = compute_payout(
+            payout_tier=s["payout_tier"],
+            claimed_hours=s["disruption_hours"],
+            avg_weekly_income=worker.avg_weekly_income,
+            declared_weekly_hours=worker.declared_weekly_hours,
+            coverage_amount=policy.coverage_amount,
+        )
+        worker_total = payout_per_event * total_events
+        total_projected_payout += worker_total
+
+        zone_name = str(worker.zone_id)
+        per_zone[zone_name] = per_zone.get(zone_name, 0.0) + worker_total
+
+    # BCR = total projected claims / premiums collected over scenario duration
+    scenario_weeks = s["days"] / 7
+    premiums_over_period = weekly_premium_pool * scenario_weeks
+    bcr = (total_projected_payout / premiums_over_period) if premiums_over_period > 0 else 0.0
+
+    return {
+        "scenario": s["label"],
+        "days": s["days"],
+        "total_events_projected": total_events,
+        "active_policies": len(active_policies),
+        "total_projected_payout": round(total_projected_payout, 2),
+        "premiums_over_period": round(premiums_over_period, 2),
+        "bcr": round(bcr, 4),
+        "bcr_healthy": bcr <= 0.70,
+        "bcr_warning": 0.70 < bcr <= 0.85,
+        "bcr_critical": bcr > 0.85,
+        "enrolment_suspend_triggered": bcr > 0.85,
+        "interpretation": (
+            "HEALTHY — within BCR target (0.55–0.70)" if bcr <= 0.70 else
+            "WARNING — approaching actuarial limit (0.70–0.85)" if bcr <= 0.85 else
+            "CRITICAL — BCR exceeds 85%, new enrolments would be suspended"
+        ),
+    }
 
 
 @router.get("/zones")

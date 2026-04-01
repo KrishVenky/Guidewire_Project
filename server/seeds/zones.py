@@ -4,6 +4,19 @@ Seed the 4 Bengaluru zones and set order-rate baselines.
 from ..models.zone import Zone
 from ..integrations.order_proxy import set_baseline
 
+def _aqi_threshold_from_risk(aqi_risk_score: float) -> float:
+    """
+    Derive zone-level AQI trigger threshold from historical risk score.
+    Higher risk (more AQI-sensitive zone) → lower threshold → triggers sooner.
+    Formula: threshold = 350 - (aqi_risk_score * 100)
+      0.35 risk → 315  (low sensitivity, needs higher AQI to trigger)
+      0.50 risk → 300  (city baseline)
+      0.55 risk → 295
+      0.65 risk → 285  (high sensitivity, triggers earlier)
+    """
+    return round(350.0 - (aqi_risk_score * 100.0), 1)
+
+
 ZONES = [
     {
         "name": "Koramangala",
@@ -20,7 +33,6 @@ ZONES = [
         "risk_multiplier": 1.15,
         "rain_threshold": 50.0,
         "heat_threshold": 44.0,
-        "aqi_threshold": 300.0,
         "order_drop_threshold": 60.0,
         "baseline_order_rate": 120.0,
     },
@@ -39,7 +51,6 @@ ZONES = [
         "risk_multiplier": 1.1,
         "rain_threshold": 50.0,
         "heat_threshold": 44.0,
-        "aqi_threshold": 300.0,
         "order_drop_threshold": 60.0,
         "baseline_order_rate": 100.0,
     },
@@ -58,7 +69,6 @@ ZONES = [
         "risk_multiplier": 1.05,
         "rain_threshold": 50.0,
         "heat_threshold": 44.0,
-        "aqi_threshold": 300.0,
         "order_drop_threshold": 60.0,
         "baseline_order_rate": 95.0,
     },
@@ -77,7 +87,6 @@ ZONES = [
         "risk_multiplier": 0.95,
         "rain_threshold": 50.0,
         "heat_threshold": 44.0,
-        "aqi_threshold": 300.0,
         "order_drop_threshold": 60.0,
         "baseline_order_rate": 110.0,
     },
@@ -95,6 +104,8 @@ def seed_zones(db):
             continue
 
         baseline = z.pop("baseline_order_rate")
+        # Derive aqi_threshold dynamically from aqi_risk_score — not hardcoded
+        z["aqi_threshold"] = _aqi_threshold_from_risk(z["aqi_risk_score"])
         zone = Zone(**z)
         db.add(zone)
         try:

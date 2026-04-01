@@ -29,6 +29,7 @@ class Payout(Base):
     initiated_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
     failure_reason = Column(String, nullable=True)
+    seconds_to_complete = Column(Float, nullable=True)
 
     claim = relationship("Claim", back_populates="payout")
     worker = relationship("Worker", back_populates="payouts")

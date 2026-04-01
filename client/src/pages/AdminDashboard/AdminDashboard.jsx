@@ -121,6 +121,7 @@ export default function AdminDashboard() {
                 { label: 'Disruptions (7d)', value: dashboard.disruptions_this_week },
                 { label: 'Claims (7d)', value: dashboard.total_claims_this_week },
                 { label: 'Payouts (7d)', value: `₹${(dashboard.total_payouts_this_week || 0).toFixed(0)}` },
+                { label: 'Avg Payout Time', value: financial?.avg_payout_seconds != null ? `${financial.avg_payout_seconds.toFixed(1)}s` : '—' },
               ].map(m => (
                 <div key={m.label} className="bg-white rounded-xl shadow p-4">
                   <p className="text-gray-500 text-sm">{m.label}</p>

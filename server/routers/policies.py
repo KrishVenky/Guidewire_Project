@@ -4,12 +4,27 @@ from uuid import UUID
 from datetime import date
 from typing import List
 
+from sqlalchemy import func
+
 from ..database import get_db
 from ..models.worker import Worker
 from ..models.policy import Policy, PolicyStatus
+from ..models.payout import Payout, PayoutStatus
 from ..models.zone import Zone
 from ..schemas.policy import PolicyCreate, PolicyUpdate, PolicyResponse, PremiumBreakdown
 from ..services.premium_calculator import calculate
+
+LOSS_RATIO_SUSPEND_THRESHOLD = 0.85
+
+
+def _current_loss_ratio(db: Session) -> float:
+    total_premiums = db.query(func.sum(Policy.total_premiums_paid)).scalar() or 0.0
+    if total_premiums == 0:
+        return 0.0
+    total_payouts = db.query(func.sum(Payout.amount)).filter(
+        Payout.status == PayoutStatus.COMPLETED
+    ).scalar() or 0.0
+    return total_payouts / total_premiums
 
 router = APIRouter(prefix="/api/policies", tags=["policies"])
 
@@ -47,6 +62,13 @@ def create_policy(body: PolicyCreate, db: Session = Depends(get_db)):
     ).first()
     if existing_active:
         raise HTTPException(status_code=409, detail="Worker already has an active policy")
+
+    loss_ratio = _current_loss_ratio(db)
+    if loss_ratio > LOSS_RATIO_SUSPEND_THRESHOLD:
+        raise HTTPException(
+            status_code=503,
+            detail=f"New enrolments suspended: loss ratio {loss_ratio:.0%} exceeds 85% actuarial threshold. Existing policies unaffected.",
+        )
 
     zone = db.query(Zone).filter(Zone.id == worker.zone_id).first()
     if not zone:
