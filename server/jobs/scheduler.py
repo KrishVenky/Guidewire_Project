@@ -14,11 +14,11 @@ async def poll_and_evaluate():
     evaluates DTPM triggers, fires claims pipeline if both T1 + T2 fire.
     """
     try:
-        from ..database import SessionLocal
-        from ..models.zone import Zone
-        from ..models.disruption_event import DisruptionEvent, EventSource
-        from ..services.trigger_engine import evaluate_zone
-        from ..services.claims_service import process_disruption_event
+        from database import SessionLocal
+        from models.zone import Zone
+        from models.disruption_event import DisruptionEvent, EventSource
+        from services.trigger_engine import evaluate_zone
+        from services.claims_service import process_disruption_event
 
         db = SessionLocal()
         try:
@@ -71,8 +71,8 @@ async def poll_and_evaluate():
 async def deduct_weekly_premiums():
     """Runs every Monday at 06:00 IST."""
     try:
-        from ..database import SessionLocal
-        from ..models.policy import Policy, PolicyStatus
+        from database import SessionLocal
+        from models.policy import Policy, PolicyStatus
         from datetime import date
 
         db = SessionLocal()
@@ -99,8 +99,8 @@ async def deduct_weekly_premiums():
 async def reset_weekly_premium_flag():
     """Runs every Sunday at 23:55 IST to reset premium_paid_this_week."""
     try:
-        from ..database import SessionLocal
-        from ..models.policy import Policy, PolicyStatus
+        from database import SessionLocal
+        from models.policy import Policy, PolicyStatus
 
         db = SessionLocal()
         try:

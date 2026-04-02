@@ -3,7 +3,7 @@ Groq LLM service — Hinglish communication layer only.
 The LLM never makes financial decisions.
 Falls back to templated messages if no API key is set.
 """
-from ..config import get_settings
+from config import get_settings
 
 settings = get_settings()
 

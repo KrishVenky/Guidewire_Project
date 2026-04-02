@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 from uuid import UUID
 
-from ..integrations import open_meteo, waqi, sachet, order_proxy
-from ..models.disruption_event import EventType, EventSource, PayoutTier
+from integrations import open_meteo, waqi, sachet, order_proxy
+from models.disruption_event import EventType, EventSource, PayoutTier
 
 
 @dataclass

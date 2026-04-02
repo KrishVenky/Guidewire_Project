@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from .config import get_settings
+from config import get_settings
 
 settings = get_settings()
 
@@ -26,5 +26,5 @@ def get_db():
 
 
 def create_tables():
-    from .models import worker, zone, policy, claim, payout, disruption_event, audit_log  # noqa
+    from models import worker, zone, policy, claim, payout, disruption_event, audit_log  # noqa
     Base.metadata.create_all(bind=engine)

@@ -87,7 +87,7 @@ def calculate(
 
     # Try XGBoost model first
     try:
-        from ..ml.premium_model import predict
+        from ml.premium_model import predict
         weekly_premium = predict(
             base_rate=BASE_RATE,
             zone_multiplier=zone_mult,

@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from uuid import UUID
 from datetime import datetime
 from typing import Optional
-from ..models.worker import Platform, TrustTier
+from models.worker import Platform, TrustTier
 
 
 class WorkerCreate(BaseModel):

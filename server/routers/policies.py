@@ -6,13 +6,13 @@ from typing import List
 
 from sqlalchemy import func
 
-from ..database import get_db
-from ..models.worker import Worker
-from ..models.policy import Policy, PolicyStatus
-from ..models.payout import Payout, PayoutStatus
-from ..models.zone import Zone
-from ..schemas.policy import PolicyCreate, PolicyUpdate, PolicyResponse, PremiumBreakdown
-from ..services.premium_calculator import calculate
+from database import get_db
+from models.worker import Worker
+from models.policy import Policy, PolicyStatus
+from models.payout import Payout, PayoutStatus
+from models.zone import Zone
+from schemas.policy import PolicyCreate, PolicyUpdate, PolicyResponse, PremiumBreakdown
+from services.premium_calculator import calculate
 
 LOSS_RATIO_SUSPEND_THRESHOLD = 0.85
 

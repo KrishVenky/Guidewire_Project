@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from uuid import UUID
 from datetime import date, datetime
 from typing import Optional
-from ..models.policy import PolicyStatus
+from models.policy import PolicyStatus
 
 
 class PolicyCreate(BaseModel):

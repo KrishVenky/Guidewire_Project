@@ -4,10 +4,10 @@ from pydantic import BaseModel
 from uuid import UUID
 from typing import List, Optional
 
-from ..database import get_db
-from ..models.claim import Claim
-from ..models.worker import Worker
-from ..services.llm_service import generate_claim_explanation, onboarding_chat
+from database import get_db
+from models.claim import Claim
+from models.worker import Worker
+from services.llm_service import generate_claim_explanation, onboarding_chat
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 

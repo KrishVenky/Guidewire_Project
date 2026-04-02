@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
-from ..database import Base
+from database import Base
 
 
 class EventType(str, enum.Enum):

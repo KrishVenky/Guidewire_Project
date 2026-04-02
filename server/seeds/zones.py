@@ -1,8 +1,8 @@
 """
 Seed the 4 Bengaluru zones and set order-rate baselines.
 """
-from ..models.zone import Zone
-from ..integrations.order_proxy import set_baseline
+from models.zone import Zone
+from integrations.order_proxy import set_baseline
 
 def _aqi_threshold_from_risk(aqi_risk_score: float) -> float:
     """

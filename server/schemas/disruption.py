@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
 from typing import Optional
-from ..models.disruption_event import EventType, EventSource, PayoutTier
+from models.disruption_event import EventType, EventSource, PayoutTier
 
 
 class SimulateDisruptionRequest(BaseModel):

@@ -3,7 +3,7 @@ from sqlalchemy import Column, String, DateTime, Enum as SAEnum, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import enum
-from ..database import Base
+from database import Base
 
 
 class TriggeredBy(str, enum.Enum):

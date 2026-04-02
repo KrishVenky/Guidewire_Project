@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from .config import get_settings
-from .database import create_tables, SessionLocal
+from config import get_settings
+from database import create_tables, SessionLocal
 
 settings = get_settings()
 logging.basicConfig(level=logging.INFO)
@@ -19,28 +19,28 @@ async def lifespan(app: FastAPI):
     logger.info("[Startup] Seeding zones...")
     db = SessionLocal()
     try:
-        from .seeds.zones import seed_zones
+        from seeds.zones import seed_zones
         seed_zones(db)
     finally:
         db.close()
 
     logger.info("[Startup] Training ML models...")
     try:
-        from .ml.train_premium_model import train_and_save as train_premium
-        from .ml.fraud_model import train_and_save as train_fraud
+        from ml.train_premium_model import train_and_save as train_premium
+        from ml.fraud_model import train_and_save as train_fraud
         train_premium()
         train_fraud()
     except Exception as e:
         logger.warning(f"[Startup] ML training skipped: {e}")
 
     logger.info("[Startup] Starting APScheduler...")
-    from .jobs.scheduler import start_scheduler
+    from jobs.scheduler import start_scheduler
     start_scheduler()
 
     yield
 
     logger.info("[Shutdown] Stopping scheduler...")
-    from .jobs.scheduler import scheduler
+    from jobs.scheduler import scheduler
     if scheduler.running:
         scheduler.shutdown(wait=False)
 
@@ -61,7 +61,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from .routers import workers, policies, claims, disruptions, admin, llm
+from routers import workers, policies, claims, disruptions, admin, llm
 
 app.include_router(workers.router)
 app.include_router(policies.router)

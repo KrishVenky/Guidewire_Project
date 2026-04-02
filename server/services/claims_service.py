@@ -7,11 +7,11 @@ from datetime import datetime, timedelta
 from uuid import UUID
 from sqlalchemy.orm import Session
 
-from ..models.claim import Claim, ClaimStatus
-from ..models.policy import Policy, PolicyStatus
-from ..models.disruption_event import DisruptionEvent
-from ..models.worker import Worker
-from ..services import fraud_detector, premium_calculator, payout_service, llm_service
+from models.claim import Claim, ClaimStatus
+from models.policy import Policy, PolicyStatus
+from models.disruption_event import DisruptionEvent
+from models.worker import Worker
+from services import fraud_detector, premium_calculator, payout_service, llm_service
 
 
 async def process_disruption_event(

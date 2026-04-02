@@ -4,9 +4,9 @@ from uuid import UUID
 from datetime import datetime
 from typing import List
 
-from ..database import get_db
-from ..models.claim import Claim, ClaimStatus
-from ..schemas.claim import ClaimResponse, ClaimReviewRequest, TrustSurveyRequest
+from database import get_db
+from models.claim import Claim, ClaimStatus
+from schemas.claim import ClaimResponse, ClaimReviewRequest, TrustSurveyRequest
 
 router = APIRouter(prefix="/api/claims", tags=["claims"])
 
@@ -41,7 +41,7 @@ def review_claim(claim_id: UUID, body: ClaimReviewRequest, db: Session = Depends
 
         # Trigger payout if not already paid
         if claim.payout_amount > 0 and not claim.payout:
-            from ..services.payout_service import process_payout
+            from services.payout_service import process_payout
             process_payout(claim, db)
     elif body.action.upper() == "REJECT":
         claim.status = ClaimStatus.REJECTED

@@ -1,9 +1,9 @@
 from datetime import datetime
 import logging
 from sqlalchemy.orm import Session
-from ..models.payout import Payout, PayoutStatus
-from ..models.claim import Claim, ClaimStatus
-from ..integrations.razorpay_mock import initiate_payout
+from models.payout import Payout, PayoutStatus
+from models.claim import Claim, ClaimStatus
+from integrations.razorpay_mock import initiate_payout
 
 logger = logging.getLogger(__name__)
 

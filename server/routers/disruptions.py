@@ -4,16 +4,16 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List
 
-from ..database import get_db
-from ..models.disruption_event import DisruptionEvent, EventSource, PayoutTier
-from ..models.zone import Zone
-from ..schemas.disruption import (
+from database import get_db
+from models.disruption_event import DisruptionEvent, EventSource, PayoutTier
+from models.zone import Zone
+from schemas.disruption import (
     SimulateDisruptionRequest, BandhToggleRequest,
     DisruptionEventResponse, SimulationResult
 )
-from ..services.trigger_engine import compute_severity, severity_to_tier
-from ..services.claims_service import process_disruption_event
-from ..integrations.order_proxy import set_bandh, simulate_weather_drop, compute_drop_pct
+from services.trigger_engine import compute_severity, severity_to_tier
+from services.claims_service import process_disruption_event
+from integrations.order_proxy import set_bandh, simulate_weather_drop, compute_drop_pct
 
 router = APIRouter(prefix="/api/disruptions", tags=["disruptions"])
 
@@ -71,8 +71,8 @@ async def simulate_disruption(body: SimulateDisruptionRequest, db: Session = Dep
     dual_trigger = t1_confirmed and t2_confirmed
 
     # Severity + tier
-    from ..services.trigger_engine import T1Result, T2Result
-    from ..models.disruption_event import EventType, EventSource
+    from services.trigger_engine import T1Result, T2Result
+    from models.disruption_event import EventType, EventSource
     t1 = T1Result(confirmed=t1_confirmed, raw_value=body.raw_value, threshold=threshold)
     t2 = T2Result(confirmed=t2_confirmed, drop_pct=order_drop_pct)
     severity = compute_severity(t1, t2)

@@ -3,12 +3,12 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from datetime import datetime
 
-from ..database import get_db
-from ..models.worker import Worker
-from ..models.policy import Policy, PolicyStatus
-from ..models.claim import Claim, ClaimStatus
-from ..models.disruption_event import DisruptionEvent
-from ..schemas.worker import WorkerCreate, WorkerUpdate, WorkerResponse, WorkerDashboard
+from database import get_db
+from models.worker import Worker
+from models.policy import Policy, PolicyStatus
+from models.claim import Claim, ClaimStatus
+from models.disruption_event import DisruptionEvent
+from schemas.worker import WorkerCreate, WorkerUpdate, WorkerResponse, WorkerDashboard
 
 router = APIRouter(prefix="/api/workers", tags=["workers"])
 

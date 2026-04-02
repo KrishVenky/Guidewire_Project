@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, List
-from ..models.claim import ClaimStatus
+from models.claim import ClaimStatus
 
 
 class ClaimReviewRequest(BaseModel):

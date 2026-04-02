@@ -3,16 +3,16 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
 
-from ..database import get_db
-from ..models.worker import Worker
-from ..models.policy import Policy, PolicyStatus
-from ..models.claim import Claim, ClaimStatus
-from ..models.payout import Payout, PayoutStatus
-from ..models.disruption_event import DisruptionEvent
-from ..models.zone import Zone
-from ..schemas.worker import WorkerResponse
-from ..integrations.order_proxy import is_bandh_active
-from ..services.premium_calculator import compute_payout
+from database import get_db
+from models.worker import Worker
+from models.policy import Policy, PolicyStatus
+from models.claim import Claim, ClaimStatus
+from models.payout import Payout, PayoutStatus
+from models.disruption_event import DisruptionEvent
+from models.zone import Zone
+from schemas.worker import WorkerResponse
+from integrations.order_proxy import is_bandh_active
+from services.premium_calculator import compute_payout
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
