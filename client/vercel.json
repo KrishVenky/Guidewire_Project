@@ -1,7 +1,7 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://your-railway-app.railway.app/api/$1" },
-    { "source": "/health", "destination": "https://your-railway-app.railway.app/health" },
+    { "source": "/api/(.*)", "destination": "https://guidewireproject-production.up.railway.app/api/$1" },
+    { "source": "/health", "destination": "https://guidewireproject-production.up.railway.app/health" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
