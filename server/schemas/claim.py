@@ -28,6 +28,9 @@ class ClaimResponse(BaseModel):
     fraud_score: float
     fraud_flags: List[str]
     auto_initiated: bool
+    event_started_at: Optional[datetime] = None
+    event_ended_at: Optional[datetime] = None
+    duration_hours: float = 0.0
     llm_explanation: str
     created_at: datetime
     reviewed_at: Optional[datetime] = None

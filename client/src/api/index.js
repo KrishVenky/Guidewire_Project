@@ -6,6 +6,7 @@ const api = axios.create({
 })
 
 // Workers
+export const lookupWorkerByPhone = (phone) => api.get('/workers/lookup', { params: { phone } })
 export const registerWorker = (data) => api.post('/workers/register', data)
 export const getWorker = (id) => api.get(`/workers/${id}`)
 export const updateWorker = (id, data) => api.put(`/workers/${id}`, data)

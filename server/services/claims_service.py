@@ -26,6 +26,11 @@ async def process_disruption_event(
     claims_created = 0
     skipped = 0
 
+    # Capture zone_name before any commits detach relationships
+    from models.zone import Zone
+    zone = db.query(Zone).filter(Zone.id == event.zone_id).first()
+    zone_name = zone.name if zone else "your zone"
+
     # Get all active policies in this zone
     workers_in_zone = (
         db.query(Worker)
@@ -75,8 +80,13 @@ async def process_disruption_event(
             worker_trust_tier=worker.trust_tier.value,
         )
 
-        # Compute payout amount
-        disruption_hours = 3.0  # estimated disruption duration
+        # Compute disruption duration from event window
+        from datetime import timezone
+        event_start = event.started_at
+        event_end = event.ended_at or datetime.utcnow().replace(tzinfo=timezone.utc)
+        if event_start.tzinfo is None:
+            event_start = event_start.replace(tzinfo=timezone.utc)
+        disruption_hours = max(1.0, (event_end - event_start).total_seconds() / 3600)
         payout_amount = premium_calculator.compute_payout(
             payout_tier=event.payout_tier.value,
             claimed_hours=disruption_hours,
@@ -92,6 +102,9 @@ async def process_disruption_event(
             policy_id=active_policy.id,
             disruption_event_id=event.id,
             status=status,
+            event_started_at=event_start,
+            event_ended_at=event_end,
+            duration_hours=round(disruption_hours, 2),
             claimed_hours_lost=disruption_hours,
             estimated_income_lost=round(
                 (worker.avg_weekly_income / max(worker.declared_weekly_hours, 1)) * disruption_hours, 2
@@ -107,7 +120,7 @@ async def process_disruption_event(
         # Generate LLM explanation
         explanation, _ = await llm_service.generate_claim_explanation(
             status=status.value,
-            zone_name=event.zone.name if event.zone else "your zone",
+            zone_name=zone_name,
             event_type=event.event_type.value,
             payout_amount=payout_amount,
             upi_id=worker.upi_id,
@@ -118,7 +131,7 @@ async def process_disruption_event(
         if not fraud_result.flagged and payout_amount > 0:
             db.commit()
             db.refresh(claim)
-            payout_service.process_payout(claim, db)
+            payout_service.process_payout(claim, worker, db)
         else:
             db.commit()
 

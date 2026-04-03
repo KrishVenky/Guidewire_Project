@@ -144,6 +144,64 @@
           }
         },
         {
+          "name": "Lookup Worker by Phone (login flow)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Correct worker returned by phone', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.phone).to.eql(pm.environment.get('test_phone'));",
+                  "  pm.expect(body).to.have.property('id');",
+                  "});",
+                  "pm.test('Returns 404 for unknown phone', () => {",
+                  "  // Tested separately below",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/workers/lookup?phone={{test_phone}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "workers", "lookup"],
+              "query": [{"key": "phone", "value": "{{test_phone}}"}]
+            },
+            "description": "Looks up an existing worker by phone number — this is the login endpoint. Returns the full worker object if found, 404 if not registered. Frontend uses this to decide: login (existing) vs registration flow (new)."
+          }
+        },
+        {
+          "name": "Lookup Unknown Phone (expect 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404 for unregistered phone', () => pm.response.to.have.status(404));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/workers/lookup?phone=9000000000",
+              "host": ["{{base_url}}"],
+              "path": ["api", "workers", "lookup"],
+              "query": [{"key": "phone", "value": "9000000000"}]
+            },
+            "description": "Should return 404 — triggers new registration flow in the frontend."
+          }
+        },
+        {
           "name": "Get Worker Profile",
           "event": [
             {

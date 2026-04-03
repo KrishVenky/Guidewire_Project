@@ -10,8 +10,7 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 3
 
 
-def process_payout(claim: Claim, db: Session) -> Payout:
-    worker = claim.worker
+def process_payout(claim: Claim, worker, db: Session) -> Payout:
     initiated_at = datetime.utcnow()
 
     result = None

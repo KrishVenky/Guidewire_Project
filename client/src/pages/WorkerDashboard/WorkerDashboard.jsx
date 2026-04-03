@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../../store'
-import { getWorkerDashboard, submitSurvey, pausePolicy, updatePolicy } from '../../api'
+import { getWorkerDashboard, submitSurvey, pausePolicy, updatePolicy, createPolicy } from '../../api'
 
 const STATUS_COLORS = {
   AUTO_APPROVED: 'bg-green-100 text-green-700',
@@ -22,16 +22,17 @@ const DISRUPTION_COLORS = {
 
 export default function WorkerDashboard() {
   const navigate = useNavigate()
-  const { workerId, logout } = useStore()
+  const { workerId, workerData: cachedWorker, logout } = useStore()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [surveyClaimId, setSurveyClaimId] = useState(null)
   const [survey, setSurvey] = useState({ understood_reason: true, payout_correct: true, trust_score: 5 })
 
   useEffect(() => {
-    if (!workerId) return
+    if (!workerId) { navigate('/'); return }
     load()
-    const interval = setInterval(load, 30000) // refresh every 30s
+    const interval = setInterval(load, 30000)
     return () => clearInterval(interval)
   }, [workerId])
 
@@ -39,8 +40,14 @@ export default function WorkerDashboard() {
     try {
       const res = await getWorkerDashboard(workerId)
       setData(res.data)
-    } catch {
-      navigate('/onboarding')
+      setError(null)
+    } catch (e) {
+      if (e?.response?.status === 404) {
+        logout()
+        navigate('/')
+        return
+      }
+      setError('Could not load dashboard. Retrying...')
     } finally {
       setLoading(false)
     }
@@ -58,19 +65,33 @@ export default function WorkerDashboard() {
     load()
   }
 
+  const handleGetCoverage = async () => {
+    try {
+      await createPolicy(workerId)
+    } catch (e) {
+      // 409 means a policy already exists (e.g. paused) — just reload to show it
+      if (e?.response?.status !== 409) {
+        setError(e?.response?.data?.detail || 'Could not create policy')
+        return
+      }
+    }
+    load()
+  }
+
   const handleSurveySubmit = async () => {
     await submitSurvey(surveyClaimId, survey)
     setSurveyClaimId(null)
     load()
   }
 
-  if (loading) return (
+  if (loading && !data) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-blue-600 text-lg font-medium animate-pulse">Loading your dashboard...</div>
     </div>
   )
 
   const { worker, active_policy, recent_claims, active_disruptions, earnings_protected } = data || {}
+  const displayWorker = worker || cachedWorker
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -78,14 +99,23 @@ export default function WorkerDashboard() {
       <nav className="bg-blue-900 text-white px-6 py-4 flex justify-between items-center">
         <div>
           <span className="text-xl font-bold">RainReady</span>
-          <span className="ml-3 text-blue-300 text-sm">{worker?.trust_tier?.replace('_', ' ')}</span>
+          <span className="ml-3 text-blue-300 text-sm">{displayWorker?.trust_tier?.replace(/_/g, ' ')}</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-blue-200 text-sm">{worker?.full_name}</span>
-          <button onClick={() => { logout(); navigate('/onboarding') }}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-sm font-bold">
+              {displayWorker?.full_name?.[0]?.toUpperCase() || '?'}
+            </div>
+            <span className="text-blue-200 text-sm">{displayWorker?.full_name}</span>
+          </div>
+          <button onClick={() => { logout(); navigate('/') }}
             className="text-blue-300 hover:text-white text-sm underline">Logout</button>
         </div>
       </nav>
+
+      {error && (
+        <div className="bg-yellow-50 border-b border-yellow-200 text-yellow-700 text-sm text-center py-2">{error}</div>
+      )}
 
       <div className="max-w-2xl mx-auto p-4 space-y-4">
 
@@ -119,7 +149,7 @@ export default function WorkerDashboard() {
                   <p className="text-gray-500 text-sm">Max payout: ₹{active_policy.coverage_amount?.toFixed(2)}</p>
                 </div>
               ) : (
-                <p className="text-gray-500 mt-2">No active policy. <a href="/onboarding" className="text-blue-600 underline">Get covered →</a></p>
+                <p className="text-gray-500 mt-2">No active policy. <button onClick={handleGetCoverage} className="text-blue-600 underline">Get covered →</button></p>
               )}
             </div>
             {active_policy && (
@@ -178,10 +208,10 @@ export default function WorkerDashboard() {
         <div className="bg-white rounded-xl shadow p-5">
           <h2 className="text-lg font-semibold text-gray-800 mb-3">Your Profile</h2>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><span className="text-gray-500">Platform</span><p className="font-medium">{worker?.platform}</p></div>
-            <div><span className="text-gray-500">UPI ID</span><p className="font-medium">{worker?.upi_id}</p></div>
-            <div><span className="text-gray-500">Trust Tier</span><p className="font-medium">{worker?.trust_tier?.replace(/_/g, ' ')}</p></div>
-            <div><span className="text-gray-500">Tenure</span><p className="font-medium">{worker?.tenure_weeks} weeks</p></div>
+            <div><span className="text-gray-500">Platform</span><p className="font-medium">{displayWorker?.platform}</p></div>
+            <div><span className="text-gray-500">UPI ID</span><p className="font-medium">{displayWorker?.upi_id}</p></div>
+            <div><span className="text-gray-500">Trust Tier</span><p className="font-medium">{displayWorker?.trust_tier?.replace(/_/g, ' ')}</p></div>
+            <div><span className="text-gray-500">Tenure</span><p className="font-medium">{displayWorker?.tenure_weeks} weeks</p></div>
           </div>
         </div>
       </div>

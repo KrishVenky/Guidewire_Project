@@ -32,6 +32,10 @@ class Claim(Base):
     fraud_flags = Column(JSON, default=list)
     auto_initiated = Column(Boolean, default=True)
 
+    event_started_at = Column(DateTime(timezone=True), nullable=True)
+    event_ended_at = Column(DateTime(timezone=True), nullable=True)
+    duration_hours = Column(Float, default=0.0)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
     llm_explanation = Column(String, default="")

@@ -37,11 +37,9 @@ def admin_dashboard(db: Session = Depends(get_db)):
         Payout.status == PayoutStatus.COMPLETED,
     ).scalar() or 0.0
 
-    premiums_this_week = db.query(func.sum(Policy.weekly_premium)).filter(
-        Policy.status == PolicyStatus.ACTIVE
-    ).scalar() or 0.0
+    premiums_collected = db.query(func.sum(Policy.total_premiums_paid)).scalar() or 0.0
 
-    loss_ratio = (payouts_this_week / premiums_this_week) if premiums_this_week > 0 else 0.0
+    loss_ratio = (payouts_this_week / premiums_collected) if premiums_collected > 0 else 0.0
     pending_review = db.query(Claim).filter(Claim.status == ClaimStatus.MANUAL_REVIEW).count()
 
     return {

@@ -5,9 +5,7 @@ import {
   getAdminDashboard, getPendingClaims, getFinancialSummary,
   getZoneTrustScores, getZones, simulateDisruption, toggleBandh, reviewClaim
 } from '../../api'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
-const ZONE_COLORS = { low: 'bg-green-100 text-green-700', medium: 'bg-yellow-100 text-yellow-700', high: 'bg-red-100 text-red-700' }
 const EVENT_TYPES = ['HEAVY_RAIN', 'EXTREME_HEAT', 'HIGH_AQI', 'NDMA_ALERT', 'BANDH']
 
 export default function AdminDashboard() {
@@ -28,7 +26,10 @@ export default function AdminDashboard() {
   const [adminPin, setAdminPin] = useState('')
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!isAdmin) {
+      setAdminPin('')
+      return
+    }
     loadAll()
     const i = setInterval(loadAll, 30000)
     return () => clearInterval(i)
@@ -42,7 +43,7 @@ export default function AdminDashboard() {
     if (p.status === 'fulfilled') setPendingClaims(p.value.data)
     if (f.status === 'fulfilled') setFinancial(f.value.data)
     if (t.status === 'fulfilled') setTrustScores(t.value.data)
-    if (z.status === 'fulfilled') { setZones(z.value.data); if (z.value.data[0]) setSimForm(f => ({ ...f, zone_id: z.value.data[0].id })) }
+    if (z.status === 'fulfilled') { setZones(z.value.data) }
   }
 
   const handleSimulate = async () => {
@@ -90,6 +91,9 @@ export default function AdminDashboard() {
             Enter
           </button>
           <p className="text-xs text-gray-400">PIN: admin123 (demo)</p>
+          <button onClick={() => navigate('/')} className="text-sm text-gray-400 hover:text-gray-600 underline">
+            Back to home
+          </button>
         </div>
       </div>
     )
@@ -106,7 +110,7 @@ export default function AdminDashboard() {
               {t}
             </button>
           ))}
-          <button onClick={() => setAdmin(false)} className="text-gray-400 hover:text-white text-sm ml-4">Logout</button>
+          <button onClick={() => { setAdmin(false); navigate('/') }} className="text-gray-400 hover:text-white text-sm ml-2">Logout</button>
         </div>
       </nav>
 
@@ -185,32 +189,76 @@ export default function AdminDashboard() {
 
         {/* Claims Review */}
         {tab === 'claims' && (
-          <div className="bg-white rounded-xl shadow p-4">
-            <h3 className="font-semibold text-gray-700 mb-3">Pending Claims ({pendingClaims.length})</h3>
-            {pendingClaims.length === 0 && <p className="text-gray-400 text-sm">No claims pending review.</p>}
-            <div className="space-y-3">
-              {pendingClaims.map(c => (
-                <div key={c.id} className="border border-yellow-200 rounded-lg p-3 bg-yellow-50">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Claim {c.id.slice(0, 8)}…</p>
-                      <p className="text-sm text-gray-500">Fraud score: <span className="font-medium text-red-600">{c.fraud_score.toFixed(2)}</span></p>
-                      <div className="flex gap-1 flex-wrap mt-1">
-                        {(c.fraud_flags || []).map(f => (
-                          <span key={f} className="px-1.5 py-0.5 bg-red-100 text-red-600 rounded text-xs">{f}</span>
-                        ))}
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl shadow p-4">
+              <h3 className="font-semibold text-gray-700 mb-3">Pending Claims ({pendingClaims.length})</h3>
+              {pendingClaims.length === 0 && <p className="text-gray-400 text-sm">No claims pending review.</p>}
+              <div className="space-y-3">
+                {pendingClaims.map(c => (
+                  <div key={c.id} className="border border-yellow-200 rounded-lg p-3 bg-yellow-50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Claim {c.id.slice(0, 8)}…</p>
+                        <p className="text-sm text-gray-500">Fraud score: <span className="font-medium text-red-600">{c.fraud_score.toFixed(2)}</span></p>
+                        <div className="flex gap-1 flex-wrap mt-1">
+                          {(c.fraud_flags || []).map(f => (
+                            <span key={f} className="px-1.5 py-0.5 bg-red-100 text-red-600 rounded text-xs">{f}</span>
+                          ))}
+                        </div>
                       </div>
+                      <span className="font-bold text-blue-700">₹{c.payout_amount?.toFixed(0)}</span>
                     </div>
-                    <span className="font-bold text-blue-700">₹{c.payout_amount?.toFixed(0)}</span>
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => handleReview(c.id, 'APPROVE')}
+                        className="flex-1 py-1.5 bg-green-600 text-white text-sm rounded-lg">Approve</button>
+                      <button onClick={() => handleReview(c.id, 'REJECT')}
+                        className="flex-1 py-1.5 bg-red-600 text-white text-sm rounded-lg">Reject</button>
+                    </div>
                   </div>
-                  <div className="flex gap-2 mt-3">
-                    <button onClick={() => handleReview(c.id, 'APPROVE')}
-                      className="flex-1 py-1.5 bg-green-600 text-white text-sm rounded-lg">Approve</button>
-                    <button onClick={() => handleReview(c.id, 'REJECT')}
-                      className="flex-1 py-1.5 bg-red-600 text-white text-sm rounded-lg">Reject</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Fraud Intelligence Panel */}
+            <div className="bg-white rounded-xl shadow p-4">
+              <h3 className="font-semibold text-gray-700 mb-3">Fraud Intelligence</h3>
+              {pendingClaims.length === 0 ? (
+                <p className="text-gray-400 text-sm">No flagged claims detected.</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-red-50 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-red-600">{pendingClaims.length}</p>
+                      <p className="text-xs text-gray-500 mt-1">Flagged Claims</p>
+                    </div>
+                    <div className="bg-orange-50 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-orange-600">
+                        {pendingClaims.length > 0 ? Math.max(...pendingClaims.map(c => c.fraud_score)).toFixed(2) : '0.00'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Highest Score</p>
+                    </div>
+                    <div className="bg-yellow-50 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-yellow-600">
+                        ₹{pendingClaims.reduce((sum, c) => sum + (c.payout_amount || 0), 0).toFixed(0)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Held Payout</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2 font-medium">Active Fraud Signals</p>
+                    <div className="flex gap-1 flex-wrap">
+                      {[...new Set(pendingClaims.flatMap(c => c.fraud_flags || []))].map(flag => {
+                        const count = pendingClaims.filter(c => (c.fraud_flags || []).includes(flag)).length
+                        return (
+                          <span key={flag} className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                            {flag} ×{count}
+                          </span>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
@@ -225,6 +273,7 @@ export default function AdminDashboard() {
                 <label className="text-xs text-gray-500 block mb-1">Zone</label>
                 <select value={simForm.zone_id} onChange={e => setSimForm(f => ({ ...f, zone_id: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="">— Select a zone —</option>
                   {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
                 </select>
               </div>

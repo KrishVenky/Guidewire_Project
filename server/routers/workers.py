@@ -13,6 +13,14 @@ from schemas.worker import WorkerCreate, WorkerUpdate, WorkerResponse, WorkerDas
 router = APIRouter(prefix="/api/workers", tags=["workers"])
 
 
+@router.get("/lookup", response_model=WorkerResponse)
+def lookup_worker_by_phone(phone: str, db: Session = Depends(get_db)):
+    worker = db.query(Worker).filter(Worker.phone == phone).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    return worker
+
+
 @router.post("/register", response_model=WorkerResponse, status_code=201)
 def register_worker(body: WorkerCreate, db: Session = Depends(get_db)):
     existing = db.query(Worker).filter(Worker.phone == body.phone).first()
@@ -107,6 +115,7 @@ def get_dashboard(worker_id: UUID, db: Session = Depends(get_db)):
                 "payout_amount": c.payout_amount,
                 "llm_explanation": c.llm_explanation,
                 "created_at": c.created_at.isoformat(),
+                "trust_survey_response": c.trust_survey_response,
             }
             for c in recent_claims
         ],

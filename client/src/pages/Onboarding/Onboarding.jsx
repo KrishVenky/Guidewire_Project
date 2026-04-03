@@ -1,23 +1,26 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { registerWorker, getZones, calculatePremium, createPolicy } from '../../api'
+import { lookupWorkerByPhone, registerWorker, getZones, calculatePremium, createPolicy } from '../../api'
 import { useStore } from '../../store'
 
 const PLATFORMS = ['ZOMATO', 'SWIGGY', 'BLINKIT', 'INSTAMART', 'MULTIPLE']
 
-const STEPS = ['Phone', 'Details', 'Income & UPI', 'Premium Preview', 'Done']
+// step -1 = phone entry (login or register decision)
+// step 0..4 = registration steps for new users
+const REG_STEPS = ['Details', 'Income & UPI', 'Premium Preview', 'Done']
 
 export default function Onboarding() {
   const navigate = useNavigate()
   const setWorker = useStore((s) => s.setWorker)
 
-  const [step, setStep] = useState(0)
+  const [mode, setMode] = useState('phone') // 'phone' | 'register'
+  const [step, setStep] = useState(0) // used only in register mode
   const [zones, setZones] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const [phone, setPhone] = useState('')
   const [form, setForm] = useState({
-    phone: '',
     full_name: '',
     platform: 'ZOMATO',
     zone_id: '',
@@ -28,7 +31,6 @@ export default function Onboarding() {
 
   const [workerId, setWorkerId] = useState(null)
   const [premium, setPremium] = useState(null)
-  const [policyId, setPolicyId] = useState(null)
 
   useEffect(() => {
     getZones().then((r) => setZones(r.data)).catch(() => {})
@@ -36,34 +38,58 @@ export default function Onboarding() {
 
   const update = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
+  // ── Phone screen: check if existing user ──
+  const handlePhoneContinue = async () => {
+    setError('')
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      setError('Enter a valid 10-digit mobile number')
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await lookupWorkerByPhone(phone)
+      // Existing user — log them in directly
+      const w = res.data
+      setWorker(w.id, w)
+      navigate('/dashboard')
+    } catch (e) {
+      if (e?.response?.status === 404) {
+        // New user — proceed to registration
+        setMode('register')
+        setStep(0)
+      } else {
+        setError('Something went wrong. Please try again.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Registration steps ──
   const next = async () => {
     setError('')
     setLoading(true)
     try {
       if (step === 0) {
-        if (!/^[6-9]\d{9}$/.test(form.phone)) throw new Error('Enter a valid 10-digit mobile number')
-        setStep(1)
-      } else if (step === 1) {
+        // Details
         if (!form.full_name.trim()) throw new Error('Name is required')
         if (!form.zone_id) throw new Error('Please select your delivery zone')
-        setStep(2)
-      } else if (step === 2) {
+        setStep(1)
+      } else if (step === 1) {
+        // Income & UPI — register worker
         if (!form.upi_id.includes('@')) throw new Error('Enter a valid UPI ID (e.g. name@upi)')
-        // Register worker
-        const res = await registerWorker(form)
+        const res = await registerWorker({ phone, ...form })
         const id = res.data.id
         setWorkerId(id)
         setWorker(id, res.data)
-        // Get premium preview
         const pRes = await calculatePremium(id)
         setPremium(pRes.data)
+        setStep(2)
+      } else if (step === 2) {
+        // Activate policy
+        await createPolicy(workerId)
         setStep(3)
       } else if (step === 3) {
-        // Activate policy
-        const policyRes = await createPolicy(workerId)
-        setPolicyId(policyRes.data.id)
-        setStep(4)
-      } else if (step === 4) {
         navigate('/dashboard')
       }
     } catch (e) {
@@ -73,18 +99,71 @@ export default function Onboarding() {
     }
   }
 
+  // ── Phone screen ──
+  if (mode === 'phone') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-blue-900">RainReady</h1>
+            <p className="text-gray-500 text-sm mt-1">Income insurance for delivery partners</p>
+          </div>
+
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold text-gray-800">Enter your mobile number</h2>
+            <p className="text-gray-500 text-sm">
+              Already registered? We'll log you in automatically.
+            </p>
+            <input
+              type="tel"
+              maxLength={10}
+              placeholder="9876543210"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handlePhoneContinue()}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handlePhoneContinue}
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
+            >
+              {loading ? 'Checking...' : 'Continue'}
+            </button>
+
+            <p className="text-center text-sm">
+              <button
+                onClick={() => navigate('/')}
+                className="text-gray-400 hover:text-gray-600 underline"
+              >
+                Back to home
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Registration flow ──
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-        {/* Header */}
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-blue-900">RainReady</h1>
-          <p className="text-gray-500 text-sm mt-1">Income insurance for delivery partners</p>
+          <p className="text-gray-500 text-sm mt-1">New account — {phone}</p>
         </div>
 
         {/* Step indicator */}
         <div className="flex justify-between mb-8">
-          {STEPS.map((s, i) => (
+          {REG_STEPS.map((s, i) => (
             <div key={s} className="flex flex-col items-center flex-1">
               <div
                 className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
@@ -97,24 +176,9 @@ export default function Onboarding() {
           ))}
         </div>
 
-        {/* Step content */}
         <div className="space-y-4">
+          {/* Step 0 — Details */}
           {step === 0 && (
-            <>
-              <h2 className="text-xl font-semibold text-gray-800">Enter your mobile number</h2>
-              <p className="text-gray-500 text-sm">We'll use this to identify your account.</p>
-              <input
-                type="tel"
-                maxLength={10}
-                placeholder="9876543210"
-                value={form.phone}
-                onChange={(e) => update('phone', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </>
-          )}
-
-          {step === 1 && (
             <>
               <h2 className="text-xl font-semibold text-gray-800">Your details</h2>
               <input
@@ -141,7 +205,8 @@ export default function Onboarding() {
             </>
           )}
 
-          {step === 2 && (
+          {/* Step 1 — Income & UPI */}
+          {step === 1 && (
             <>
               <h2 className="text-xl font-semibold text-gray-800">Income & UPI</h2>
               <div>
@@ -174,7 +239,8 @@ export default function Onboarding() {
             </>
           )}
 
-          {step === 3 && premium && (
+          {/* Step 2 — Premium Preview */}
+          {step === 2 && premium && (
             <>
               <h2 className="text-xl font-semibold text-gray-800">Your coverage plan</h2>
               <div className="bg-blue-50 rounded-xl p-5 space-y-3">
@@ -205,7 +271,8 @@ export default function Onboarding() {
             </>
           )}
 
-          {step === 4 && (
+          {/* Step 3 — Done */}
+          {step === 3 && (
             <div className="text-center space-y-4">
               <div className="text-6xl">🎉</div>
               <h2 className="text-2xl font-bold text-green-600">You're covered!</h2>
@@ -225,24 +292,39 @@ export default function Onboarding() {
             </div>
           )}
 
-          <button
-            onClick={next}
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
-          >
-            {loading ? 'Please wait...' : step === 4 ? 'Go to Dashboard' : step === 3 ? 'Activate Coverage — ₹' + premium?.weekly_premium?.toFixed(2) + '/week' : 'Continue'}
-          </button>
-
-          {step === 0 && (
-            <p className="text-center text-sm">
+          <div className="flex gap-3">
+            {step > 0 && step <= 1 && (
               <button
-                onClick={() => { useStore.getState().setAdmin(true); navigate('/admin') }}
-                className="text-gray-400 hover:text-gray-600 underline"
+                onClick={() => { setError(''); setStep(step - 1) }}
+                disabled={loading}
+                className="w-1/3 border border-gray-300 text-gray-600 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors"
               >
-                Admin login
+                Back
               </button>
-            </p>
-          )}
+            )}
+            {step === 0 && (
+              <button
+                onClick={() => { setError(''); setMode('phone') }}
+                disabled={loading}
+                className="w-1/3 border border-gray-300 text-gray-600 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Back
+              </button>
+            )}
+            <button
+              onClick={next}
+              disabled={loading}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
+            >
+              {loading
+                ? 'Please wait...'
+                : step === 3
+                  ? 'Go to Dashboard'
+                  : step === 2
+                    ? `Activate Coverage — ₹${premium?.weekly_premium?.toFixed(2)}/week`
+                    : 'Continue'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

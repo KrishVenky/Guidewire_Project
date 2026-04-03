@@ -42,7 +42,9 @@ def review_claim(claim_id: UUID, body: ClaimReviewRequest, db: Session = Depends
         # Trigger payout if not already paid
         if claim.payout_amount > 0 and not claim.payout:
             from services.payout_service import process_payout
-            process_payout(claim, db)
+            from models.worker import Worker
+            worker = db.query(Worker).filter(Worker.id == claim.worker_id).first()
+            process_payout(claim, worker, db)
     elif body.action.upper() == "REJECT":
         claim.status = ClaimStatus.REJECTED
         claim.reviewed_at = datetime.utcnow()
