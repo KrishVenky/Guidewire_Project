@@ -1,211 +1,210 @@
-# FIX.md - RainReady Gaps, Decisions, and Test Scenarios
+# FIX.md - Final Gap Log and Action Plan (Mock MVP)
 
-## 1. Final Decisions (Locked)
+## 1. Scope and Locked Decisions
 
-1. We are in MOCK mode only for now.
-2. No real money movement in production-like flow for now (Razorpay mock only).
-3. Keep policy pricing single-zone for MVP, but allow an "active shift zone" model to handle worker movement.
-4. Registration and login must be separate from policy purchase.
-5. Premium activation must happen only from dashboard, never during signup.
-
----
-
-## 2. Core Gaps to Fix
-
-### A. Time and Date Integrity
-- All claim, disruption, and payout decisions must use server time only.
-- Do not trust client timestamp for any financial or fraud decision.
-- Add clear claim filing window rule (example: claim valid only if event ended <= 6 hours ago).
-- Add simulation time override for test mode (admin/dev only).
-
-### B. Worker Location vs Zone Logic
-- Worker can move across city; this is expected behavior.
-- Coverage must depend on active shift zone at event start time.
-- If worker changes zone after event starts, that zone change should not affect that claim.
-- Add border tolerance (example: within 1-2 km of zone boundary is still valid).
-
-### C. Auth and Privacy
-- Signup only: phone OTP + minimal profile.
-- Login separate: phone OTP only.
-- Policy activation later from dashboard with explicit consent.
-- Avoid collecting sensitive details before user confirms policy purchase flow.
-
-### D. Terms, Consent, and Validations
-- Add Terms and Conditions page.
-- Add Privacy Policy page (especially for location use).
-- Capture consent timestamp (`terms_accepted_at`).
-- Validate Indian mobile format and OTP verification strictly.
-
-### E. Premium and Coverage Clarity
-- Show exactly how premium is computed (base + multipliers).
-- Show weekly deduction schedule.
-- Show max coverage cap and per-event payout formula.
-- Show what is covered and not covered in plain language.
-
-### F. Fraud and Manual Review
-- Build explicit manual review queue for flagged claims.
-- Add reason codes visible to admin and worker (worker sees simplified reason).
-- Add ring-detection simulation scenarios using synthetic users.
+1. Product mode is MOCK only.
+2. No real bank deduction in MVP; payout and deduction are simulated through gateway mocks.
+3. Keep single-zone pricing, but support one active shift zone to handle worker movement.
+4. Signup and login are separate from policy purchase.
+5. Policy activation happens only from dashboard.
 
 ---
 
-## 3. What We Discussed and Need to Add
+## 2. Biggest Gaps (Priority Order)
 
-1. Separate registration from policy activation.
-2. Dashboard-only premium activation.
-3. Server-time-only claim decisions.
-4. Simulation date/time controls for testing edge cases.
-5. Active shift zone snapshot at disruption start.
-6. Terms + privacy + policy wording before activation.
-7. Test users and test datasets for fraud ring behavior.
-8. Clear claim stop condition when alert/event has ended.
-9. Frontend revamp with explicit flows: signup -> login -> dashboard -> activate policy.
+## P0 - Must Fix Before Demo
+
+1. Time integrity is not strict enough.
+- Every claim decision must use server timestamp only.
+- Claim filing window must be hard-enforced.
+
+2. Zone movement coverage is ambiguous.
+- Worker movement across regions is normal.
+- Eligibility must use active shift zone snapshot at event start time.
+
+3. Signup flow is overloaded.
+- Signup currently mixes identity capture and policy purchase intent.
+- This leaks too much detail too early and hurts trust.
+
+4. Terms and consent are missing in product flow.
+- Need terms acceptance and privacy acceptance timestamp before policy activation.
+
+## P1 - Must Fix for Reliability and Fairness
+
+1. Fraud-ring simulation dataset is missing.
+2. Manual review queue and reason-code visibility are incomplete.
+3. Payout failure rollback and retry logic are not clearly defined.
+4. Coverage wording is not explicit for moved workers and border cases.
+
+## P2 - Must Fix for Judge Alignment
+
+1. Actuarial guardrails are not explicit (BCR / loss-ratio thresholds).
+2. Active-hours matching is not clearly enforced in payout eligibility.
+3. Trigger granularity should move toward ward-level where possible.
 
 ---
 
-## 4. Minimum Data Additions Required
+## 3. Required Rule Changes
 
-### Worker
+1. Claim eligibility = dual trigger + active policy + active shift zone snapshot + within filing window.
+2. Zone change after event start does not alter eligibility for that event.
+3. Introduce zone-switch cooldown and daily switch cap.
+4. Add boundary tolerance for near-edge deliveries.
+5. If premium unpaid for cycle, claim should not be paid.
+
+---
+
+## 4. Data Fields to Add
+
+## Worker
 - `primary_zone_id`
 - `active_shift_zone_id`
 - `last_zone_switch_at`
 - `zone_switch_count_today`
 
-### Claim
-- `filed_at` (server timestamp)
+## Claim
+- `filed_at` (server-generated)
 - `event_started_at_snapshot`
 - `event_ended_at_snapshot`
 - `worker_zone_at_event_start`
-- `worker_location_at_claim` (lat/lng if available)
+- `worker_location_at_claim`
+- `decision_reason_code`
 
-### Policy
+## Policy
 - `terms_accepted_at`
 - `privacy_accepted_at`
-- `activation_source` (must be DASHBOARD for MVP)
+- `activation_source` (must be DASHBOARD)
 
-### Disruption/Event
+## Disruption Event
 - `event_start_time`
 - `event_end_time`
-- `is_active`
 - `resolved_at`
+- `is_active`
 
 ---
 
-## 5. Synthetic Test User Strategy (Fraud Ring Simulation)
+## 5. Fraud-Ring Test User Plan
 
-Create at least 5 classes of test users:
+Create synthetic users by behavior class:
 
-1. Genuine low-frequency workers
-- 1 claim/month max
-- stable zone pattern
+1. Clean workers
+- stable zone pattern, low claim frequency
 
-2. Genuine high-activity workers
-- long shift hours
-- normal but higher claim exposure during monsoon
+2. High exposure but legitimate workers
+- long active hours, valid zone shifts
 
 3. Opportunistic switchers
-- frequent zone switches near disruption windows
+- frequent pre-alert zone movement
 
-4. Coordinated fraud ring users
-- multiple workers claiming same event with suspiciously synchronized behavior
-- same device fingerprint/IP (if available in logs)
+4. Coordinated ring users
+- synchronized claims, repeated co-claiming clusters
 
-5. Honeypot-trigger users
-- users who claim against known fake/honeypot events
+5. Honeypot responders
+- users who claim fake events
 
-Add at least 200 synthetic users total:
-- 120 normal
-- 40 edge but legitimate
-- 40 suspicious/fraud-pattern
-
----
-
-## 6. Scenario Matrix (Must Pass / Must Fail)
-
-## Must Pass (Valid Outcomes)
-
-1. Dual trigger true (T1 + T2), active policy, active shift zone matches event zone -> claim created.
-2. Worker is near zone boundary but inside tolerance radius -> claim valid.
-3. Worker switched zone before event start and cooldown respected -> new zone eligible.
-4. Event ends, worker files claim within allowed filing window -> claim valid.
-5. Fraud score below threshold -> auto-approved and payout mock initiated.
-6. Missing external LLM key -> fallback template explanation still works.
-
-## Must Fail (Reject / Manual Review)
-
-1. Only T1 true but T2 false -> no payout.
-2. Only T2 true but T1 false -> no payout.
-3. Worker switched to event zone after event started -> reject or manual review.
-4. Claim filed after filing window expiry -> reject.
-5. Duplicate claim for same worker + same event -> quarantine/manual review.
-6. Honeypot event claim attempt -> quarantine/manual review.
-7. Excessive zone switching pattern in a day -> manual review.
-8. Policy not active or premium unpaid for current cycle -> no payout.
+Minimum dataset target:
+- 200 users total
+- 120 clean
+- 40 edge legitimate
+- 40 suspicious
 
 ---
 
-## 7. Time-Based Edge Cases to Test
+## 6. Scenario Matrix - Must Pass
 
-1. Event starts before midnight and ends after midnight.
-2. Weekly premium deduction day boundary (Monday schedule).
-3. Event resolved but stale alert still visible in UI.
-4. Claim created while event active, then event resolves before payout.
-5. Simulation with backdated event and current claim submission.
-
----
-
-## 8. Zone Movement Rules (Clear Policy Wording)
-
-1. Worker has one primary zone for pricing.
-2. Worker can select one active shift zone at a time.
-3. Coverage decision uses active shift zone at event start snapshot.
-4. Zone changes after event start do not alter eligibility for that event.
-5. Rapid zone hopping is fraud-sensitive and may trigger manual review.
+1. T1 and T2 true, policy active, zone snapshot matches -> claim created.
+2. Worker at zone boundary within tolerance -> claim valid.
+3. Worker switched zone before event and cooldown respected -> claim valid in new zone.
+4. Claim filed within deadline after event end -> claim valid.
+5. Fraud score below threshold -> auto-approve and payout mock processed.
+6. LLM key unavailable -> explanation fallback template still works.
+7. UPI transfer mock fails once, retry succeeds -> payout completes and logs reconcile.
 
 ---
 
-## 9. Frontend Flow (Target)
+## 7. Scenario Matrix - Must Fail or Manual Review
 
-1. Signup screen (phone + OTP + basic details only).
-2. Login screen (phone + OTP).
-3. Dashboard (policy status, premium preview, activation CTA).
-4. Terms and privacy acceptance step.
-5. Activate policy from dashboard only.
-6. Claims page with status timeline and clear decision reason.
-
----
-
-## 10. Payment and Coverage (Mock-Only MVP)
-
-1. Razorpay mock used for deduction simulation.
-2. Deduction event logged with reference ID.
-3. Coverage amount and payout cap displayed before activation.
-4. Failed deduction in mock should pause policy until resolved.
+1. Only T1 true -> no payout.
+2. Only T2 true -> no payout.
+3. Worker changed zone after event started -> reject/manual review.
+4. Filing window expired -> reject.
+5. Duplicate claim same worker and event -> quarantine/manual review.
+6. Honeypot claim attempt -> quarantine/manual review.
+7. Zone hopping beyond cap -> manual review.
+8. Premium unpaid in current cycle -> reject.
+9. Worker inactive in trigger window -> reject/manual review.
+10. Ring cluster detected across multiple accounts -> manual review.
 
 ---
 
-## 11. Missing Items Checklist
+## 8. Time and Simulation Cases
 
-- [ ] Separate signup and login implementation
+1. Event crosses midnight.
+2. Monday premium deduction boundary.
+3. Event resolved but stale UI alert present.
+4. Claim created while event active, payout after event closure.
+5. Backdated event simulation with current-time claim submission.
+6. Clock override in dev mode only; never enabled in production mode.
+
+---
+
+## 9. Frontend Gaps and Required Flow
+
+1. Signup: phone + OTP + basic profile only.
+2. Login: phone + OTP only.
+3. Dashboard: premium preview, coverage summary, activate CTA.
+4. Consent step: terms + privacy + location policy before activation.
+5. Claim timeline page: reason codes, timestamps, final state.
+6. Zone selector: active shift zone with cooldown and warning messages.
+
+---
+
+## 10. Payments, Payouts, and Mock Behavior
+
+1. Premium deduction and payout are simulated; no real transfer.
+2. Every transfer must have reference id + retry count + status transitions.
+3. Fallback path should exist in mock logic (UPI fail -> IMPS mock path).
+4. Reconciliation log must always update final state.
+
+---
+
+## 11. Slide Alignment Gaps (From DevTrails Guidance)
+
+1. Underwriting gating needs explicit active-days rule before cover starts.
+2. Trigger should map to worker city/zone and active work window.
+3. Pricing needs affordability + sustainability guardrails.
+4. Actuarial controls need target BCR and emergency brakes.
+5. Settlement should be zero-touch, fast, and failure-safe.
+
+Suggested control thresholds for MVP:
+- Target BCR: 0.55 to 0.70
+- If loss ratio > 0.85 for rolling period: pause new enrollments and reprice
+
+---
+
+## 12. Missing Items Checklist
+
+- [ ] Server-time-only enforcement in claim engine
+- [ ] Filing window hard rule
+- [ ] Active shift zone snapshot logic
+- [ ] Zone cooldown and daily switch cap
+- [ ] Terms and privacy acceptance capture
+- [ ] Signup vs login separation
 - [ ] Dashboard-only policy activation
-- [ ] Terms and privacy acceptance logging
-- [ ] Server-time-only decision engine
-- [ ] Simulation time override endpoint (dev/admin)
-- [ ] Active shift zone model
-- [ ] Zone switch cooldown + max switches/day
-- [ ] Boundary tolerance support
-- [ ] Claim filing deadline enforcement
-- [ ] Fraud ring synthetic dataset seeder
-- [ ] Manual review queue UI + API filters
-- [ ] Test matrix automation for pass/fail scenarios
+- [ ] Fraud ring synthetic data seeder
+- [ ] Manual review queue with reason-code filters
+- [ ] Payout retry and fallback state machine
+- [ ] Simulation time override for dev/admin only
+- [ ] Pass/fail automation for all scenarios listed above
 
 ---
 
-## 12. Final Risk Notes
+## 13. Final Risks if Unfixed
 
-1. Biggest fairness risk: denying genuine workers who moved zones for delivery.
-2. Biggest fraud risk: workers switching zones right after an alert is published.
-3. Biggest trust risk: unclear policy wording on what location is actually covered.
-4. Biggest ops risk: no simulation time controls means poor QA for date boundary bugs.
+1. Fairness risk: genuine workers denied when they move zones.
+2. Fraud risk: workers gaming zone switches around alerts.
+3. Trust risk: unclear wording on what is actually covered.
+4. Financial risk: no actuarial guardrails can break sustainability.
+5. Ops risk: weak simulation controls leave date-boundary bugs undetected.
 
-This FIX document is now the single source of truth for MVP corrections before scaling features.
+This file is the final implementation gap tracker for the mock MVP.
