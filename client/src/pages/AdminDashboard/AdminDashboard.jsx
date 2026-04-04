@@ -15,7 +15,7 @@ const SCENARIO_PRESETS = {
   heatwave:         { label: 'Extreme Heat',       event_type: 'EXTREME_HEAT', raw_value: 42.0, force_t2: true },
   aqi_spike:        { label: 'AQI Spike',          event_type: 'HIGH_AQI',     raw_value: 420,  force_t2: true },
   bandh:            { label: 'Bandh',              event_type: 'BANDH',        raw_value: 1.0,  force_t2: true },
-  honeypot:         { label: 'Honeypot (fraud)',   event_type: 'HIGH_AQI',     raw_value: 420,  force_t2: true },
+  honeypot:         { label: 'Honeypot (fraud)',   event_type: 'HIGH_AQI',     raw_value: 420,  force_t2: true, is_honeypot: true },
 }
 
 export default function AdminDashboard() {
@@ -33,7 +33,7 @@ export default function AdminDashboard() {
   const [workerSearch, setWorkerSearch] = useState('')
   const [selectedWorkerId, setSelectedWorkerId] = useState('')
   const [preset, setPreset] = useState('clean_day')
-  const [simForm, setSimForm] = useState({ zone_id: '', event_type: 'HEAVY_RAIN', raw_value: 72.5, force_t2: true })
+  const [simForm, setSimForm] = useState({ zone_id: '', event_type: 'HEAVY_RAIN', raw_value: 72.5, force_t2: true, is_honeypot: false })
   const [simResult, setSimResult] = useState(null)
   const [resetResult, setResetResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -70,7 +70,7 @@ export default function AdminDashboard() {
     const p = SCENARIO_PRESETS[key]
     if (!p) return
     setPreset(key)
-    setSimForm(f => ({ ...f, event_type: p.event_type, raw_value: p.raw_value, force_t2: p.force_t2 }))
+    setSimForm(f => ({ ...f, event_type: p.event_type, raw_value: p.raw_value, force_t2: p.force_t2, is_honeypot: p.is_honeypot ?? false }))
   }
 
   const handleSimulate = async () => {
