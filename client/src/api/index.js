@@ -39,6 +39,8 @@ export const getAllWorkers = () => api.get('/admin/workers')
 export const getFinancialSummary = () => api.get('/admin/financial-summary')
 export const getZoneTrustScores = () => api.get('/admin/zone-trust-scores')
 export const getZones = () => api.get('/admin/zones')
+export const getTriggerSources = () => api.get('/admin/trigger-sources')
+export const globalReset = () => api.post('/admin/global-reset')
 
 // LLM
 export const explainClaim = (claimId) => api.post('/llm/explain-claim', { claim_id: claimId })

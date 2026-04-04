@@ -3,10 +3,20 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../../store'
 import {
   getAdminDashboard, getPendingClaims, getFinancialSummary,
-  getZoneTrustScores, getZones, simulateDisruption, toggleBandh, reviewClaim
+  getZoneTrustScores, getZones, getTriggerSources, getAllWorkers,
+  simulateDisruption, toggleBandh, reviewClaim, globalReset
 } from '../../api'
 
 const EVENT_TYPES = ['HEAVY_RAIN', 'EXTREME_HEAT', 'HIGH_AQI', 'NDMA_ALERT', 'BANDH']
+
+const SCENARIO_PRESETS = {
+  clean_day:        { label: 'Clean Day',         event_type: 'HEAVY_RAIN',   raw_value: 72.5, force_t2: true },
+  monsoon_14day:    { label: 'Monsoon (14-day)',   event_type: 'HEAVY_RAIN',   raw_value: 85.0, force_t2: true },
+  heatwave:         { label: 'Extreme Heat',       event_type: 'EXTREME_HEAT', raw_value: 42.0, force_t2: true },
+  aqi_spike:        { label: 'AQI Spike',          event_type: 'HIGH_AQI',     raw_value: 420,  force_t2: true },
+  bandh:            { label: 'Bandh',              event_type: 'BANDH',        raw_value: 1.0,  force_t2: true },
+  honeypot:         { label: 'Honeypot (fraud)',   event_type: 'HIGH_AQI',     raw_value: 420,  force_t2: true },
+}
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
@@ -18,9 +28,16 @@ export default function AdminDashboard() {
   const [financial, setFinancial] = useState(null)
   const [trustScores, setTrustScores] = useState([])
   const [zones, setZones] = useState([])
+  const [triggerSources, setTriggerSources] = useState(null)
+  const [workers, setWorkers] = useState([])
+  const [workerSearch, setWorkerSearch] = useState('')
+  const [selectedWorkerId, setSelectedWorkerId] = useState('')
+  const [preset, setPreset] = useState('clean_day')
   const [simForm, setSimForm] = useState({ zone_id: '', event_type: 'HEAVY_RAIN', raw_value: 72.5, force_t2: true })
   const [simResult, setSimResult] = useState(null)
+  const [resetResult, setResetResult] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [resetting, setResetting] = useState(false)
 
   // Admin gate
   const [adminPin, setAdminPin] = useState('')
@@ -36,14 +53,24 @@ export default function AdminDashboard() {
   }, [isAdmin])
 
   const loadAll = async () => {
-    const [d, p, f, t, z] = await Promise.allSettled([
-      getAdminDashboard(), getPendingClaims(), getFinancialSummary(), getZoneTrustScores(), getZones()
+    const [d, p, f, t, z, s, w] = await Promise.allSettled([
+      getAdminDashboard(), getPendingClaims(), getFinancialSummary(),
+      getZoneTrustScores(), getZones(), getTriggerSources(), getAllWorkers()
     ])
     if (d.status === 'fulfilled') setDashboard(d.value.data)
     if (p.status === 'fulfilled') setPendingClaims(p.value.data)
     if (f.status === 'fulfilled') setFinancial(f.value.data)
     if (t.status === 'fulfilled') setTrustScores(t.value.data)
-    if (z.status === 'fulfilled') { setZones(z.value.data) }
+    if (z.status === 'fulfilled') setZones(z.value.data)
+    if (s.status === 'fulfilled') setTriggerSources(s.value.data)
+    if (w.status === 'fulfilled') setWorkers(w.value.data)
+  }
+
+  const applyPreset = (key) => {
+    const p = SCENARIO_PRESETS[key]
+    if (!p) return
+    setPreset(key)
+    setSimForm(f => ({ ...f, event_type: p.event_type, raw_value: p.raw_value, force_t2: p.force_t2 }))
   }
 
   const handleSimulate = async () => {
@@ -60,6 +87,20 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleGlobalReset = async () => {
+    setResetting(true)
+    setResetResult(null)
+    try {
+      const res = await globalReset()
+      setResetResult(res.data)
+      loadAll()
+    } catch (e) {
+      setResetResult({ error: 'Reset failed' })
+    } finally {
+      setResetting(false)
+    }
+  }
+
   const handleBandh = async (zoneId, active) => {
     await toggleBandh({ zone_id: zoneId, active })
     loadAll()
@@ -70,7 +111,16 @@ export default function AdminDashboard() {
     loadAll()
   }
 
-  const TABS = ['overview', 'claims', 'simulate', 'zones']
+  const filteredWorkers = workers.filter(w => {
+    const q = workerSearch.trim().toLowerCase()
+    if (!q) return true
+    return (w.full_name || '').toLowerCase().includes(q)
+      || (w.phone || '').includes(q)
+      || (w.platform || '').toLowerCase().includes(q)
+  })
+  const selectedWorker = workers.find(w => w.id === selectedWorkerId) || filteredWorkers[0] || null
+
+  const TABS = ['overview', 'workers', 'claims', 'simulate', 'zones']
 
   if (!isAdmin) {
     return (
@@ -133,6 +183,28 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
+
+            {triggerSources && (
+              <div className="bg-white rounded-xl shadow p-4">
+                <h3 className="font-semibold text-gray-700 mb-3">Trigger Source Health</h3>
+                {triggerSources.mock_mode && (
+                  <p className="mb-3 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    MOCK MODE — trigger sources are served from deterministic offline mocks
+                  </p>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                  {Object.entries(triggerSources).filter(([k]) => k !== 'mock_mode').map(([k, v]) => (
+                    <div key={k} className="border border-gray-100 rounded-lg p-2">
+                      <div className="font-medium text-gray-700 capitalize">{k.replace('_', ' ')}</div>
+                      <div className={v.reachable ? 'text-green-600 text-xs' : 'text-red-600 text-xs'}>
+                        {v.reachable ? 'Reachable' : 'Unreachable'}
+                      </div>
+                      {v.note && <div className="text-gray-400 text-xs">{v.note}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-white rounded-xl shadow p-4">
@@ -268,62 +340,160 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Simulate Disruption */}
-        {tab === 'simulate' && (
-          <div className="bg-white rounded-xl shadow p-4 space-y-4">
-            <h3 className="font-semibold text-gray-700">Simulate Disruption</h3>
-            <p className="text-sm text-gray-500">Trigger the full DTPM pipeline for demo purposes. Runs trigger evaluation → claims → payouts → LLM explanations.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Zone</label>
-                <select value={simForm.zone_id} onChange={e => setSimForm(f => ({ ...f, zone_id: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                  <option value="">— Select a zone —</option>
-                  {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                </select>
+        {/* Workers Tab */}
+        {tab === 'workers' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl shadow p-4 lg:col-span-1">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-gray-700">Workers</h3>
+                <span className="text-xs text-gray-400">{filteredWorkers.length}/{workers.length}</span>
               </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Event Type</label>
-                <select value={simForm.event_type} onChange={e => setSimForm(f => ({ ...f, event_type: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                  {EVENT_TYPES.map(t => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Raw Value (mm/hr, °C, or AQI)</label>
-                <input type="number" value={simForm.raw_value}
-                  onChange={e => setSimForm(f => ({ ...f, raw_value: parseFloat(e.target.value) }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div className="flex items-end">
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="checkbox" checked={simForm.force_t2}
-                    onChange={e => setSimForm(f => ({ ...f, force_t2: e.target.checked }))} />
-                  Force T2 (order drop)
-                </label>
+              <input
+                type="text"
+                value={workerSearch}
+                onChange={e => setWorkerSearch(e.target.value)}
+                placeholder="Search name, phone, platform…"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3"
+              />
+              <div className="space-y-2 max-h-[500px] overflow-auto pr-1">
+                {filteredWorkers.length === 0 && <p className="text-sm text-gray-400">No workers found.</p>}
+                {filteredWorkers.map(w => (
+                  <button key={w.id} onClick={() => setSelectedWorkerId(w.id)}
+                    className={`w-full text-left border rounded-lg p-3 transition-colors ${selectedWorker?.id === w.id ? 'border-blue-300 bg-blue-50' : 'border-gray-100 hover:bg-gray-50'}`}>
+                    <p className="font-medium text-gray-800 truncate">{w.full_name}</p>
+                    <p className="text-xs text-gray-500">{w.phone} · {w.platform}</p>
+                  </button>
+                ))}
               </div>
             </div>
-            <button onClick={handleSimulate} disabled={loading || !simForm.zone_id}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl">
-              {loading ? 'Simulating…' : 'Fire Disruption'}
-            </button>
+            <div className="bg-white rounded-xl shadow p-4 lg:col-span-2">
+              {!selectedWorker ? (
+                <p className="text-gray-400 text-sm">Select a worker to inspect.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div>
+                      <h3 className="font-semibold text-gray-800">{selectedWorker.full_name}</h3>
+                      <p className="text-xs text-gray-500">{selectedWorker.id}</p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${selectedWorker.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {selectedWorker.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    {[
+                      ['Phone', selectedWorker.phone],
+                      ['UPI', selectedWorker.upi_id],
+                      ['Platform', selectedWorker.platform],
+                      ['Trust Tier', selectedWorker.trust_tier],
+                      ['Weekly Income', `₹${Number(selectedWorker.avg_weekly_income || 0).toFixed(0)}`],
+                      ['Hours/Week', selectedWorker.declared_weekly_hours],
+                      ['Tenure', `${selectedWorker.tenure_weeks}w`],
+                      ['KYC', selectedWorker.kyc_verified ? 'Verified' : 'Pending'],
+                    ].map(([label, val]) => (
+                      <div key={label} className="border border-gray-100 rounded-lg p-3">
+                        <p className="text-gray-500">{label}</p>
+                        <p className="font-medium text-gray-800">{val}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
-            {simResult && !simResult.error && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm space-y-2">
-                <p className="font-semibold text-green-800">{simResult.message}</p>
-                <div className="grid grid-cols-2 gap-2 text-gray-600">
-                  <div>T1 confirmed: <span className={simResult.t1_confirmed ? 'text-green-600 font-medium' : 'text-red-600'}>{simResult.t1_confirmed ? 'Yes' : 'No'}</span></div>
-                  <div>T2 confirmed: <span className={simResult.t2_confirmed ? 'text-green-600 font-medium' : 'text-red-600'}>{simResult.t2_confirmed ? 'Yes' : 'No'}</span></div>
-                  <div>Severity: <span className="font-medium">{simResult.severity_score?.toFixed(1)}/100</span></div>
-                  <div>Payout tier: <span className="font-medium">{simResult.payout_tier}</span></div>
-                  <div>Claims created: <span className="font-medium">{simResult.claims_created}</span></div>
-                  <div>Skipped: <span className="font-medium">{simResult.skipped_workers}</span></div>
+        {/* Simulate Disruption */}
+        {tab === 'simulate' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl shadow p-4 space-y-4">
+              <h3 className="font-semibold text-gray-700">Simulate Disruption</h3>
+              <p className="text-sm text-gray-500">Trigger the full DTPM pipeline for demo purposes. Runs trigger evaluation → claims → payouts → LLM explanations.</p>
+
+              {/* Scenario presets */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-2">Quick Presets</label>
+                <div className="flex gap-2 flex-wrap">
+                  {Object.entries(SCENARIO_PRESETS).map(([key, p]) => (
+                    <button key={key} onClick={() => applyPreset(key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors
+                        ${preset === key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}>
+                      {p.label}
+                    </button>
+                  ))}
                 </div>
               </div>
-            )}
-            {simResult?.error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm">{simResult.error}</div>
-            )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Zone</label>
+                  <select value={simForm.zone_id} onChange={e => setSimForm(f => ({ ...f, zone_id: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="">— Select a zone —</option>
+                    {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Event Type</label>
+                  <select value={simForm.event_type} onChange={e => setSimForm(f => ({ ...f, event_type: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    {EVENT_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Raw Value (mm/hr, °C, or AQI)</label>
+                  <input type="number" value={simForm.raw_value}
+                    onChange={e => setSimForm(f => ({ ...f, raw_value: parseFloat(e.target.value) }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={simForm.force_t2}
+                      onChange={e => setSimForm(f => ({ ...f, force_t2: e.target.checked }))} />
+                    Force T2 (order drop)
+                  </label>
+                </div>
+              </div>
+              <button onClick={handleSimulate} disabled={loading || !simForm.zone_id}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl">
+                {loading ? 'Simulating…' : 'Fire Disruption'}
+              </button>
+
+              {simResult && !simResult.error && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm space-y-2">
+                  <p className="font-semibold text-green-800">{simResult.message}</p>
+                  <div className="grid grid-cols-2 gap-2 text-gray-600">
+                    <div>T1 confirmed: <span className={simResult.t1_confirmed ? 'text-green-600 font-medium' : 'text-red-600'}>{simResult.t1_confirmed ? 'Yes' : 'No'}</span></div>
+                    <div>T2 confirmed: <span className={simResult.t2_confirmed ? 'text-green-600 font-medium' : 'text-red-600'}>{simResult.t2_confirmed ? 'Yes' : 'No'}</span></div>
+                    <div>Severity: <span className="font-medium">{simResult.severity_score?.toFixed(1)}/100</span></div>
+                    <div>Payout tier: <span className="font-medium">{simResult.payout_tier}</span></div>
+                    <div>Claims created: <span className="font-medium">{simResult.claims_created}</span></div>
+                    <div>Skipped: <span className="font-medium">{simResult.skipped_workers}</span></div>
+                  </div>
+                </div>
+              )}
+              {simResult?.error && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm">{simResult.error}</div>
+              )}
+            </div>
+
+            {/* Global Reset */}
+            <div className="bg-white rounded-xl shadow p-4 space-y-3">
+              <h3 className="font-semibold text-gray-700">Global Reset</h3>
+              <p className="text-sm text-gray-500">Closes all open disruption events and resets all zone order-drop and bandh flags back to baseline. Use before a clean demo run.</p>
+              <button onClick={handleGlobalReset} disabled={resetting}
+                className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl">
+                {resetting ? 'Resetting…' : 'Reset All Disruptions & Flags'}
+              </button>
+              {resetResult && !resetResult.error && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-800">
+                  {resetResult.message}
+                </div>
+              )}
+              {resetResult?.error && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{resetResult.error}</div>
+              )}
+            </div>
           </div>
         )}
 

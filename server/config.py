@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # App
     secret_key: str = "change_this_in_production"
     debug: bool = True
+    mock_mode: bool = True
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
     class Config:

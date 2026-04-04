@@ -11,8 +11,9 @@ from models.payout import Payout, PayoutStatus
 from models.disruption_event import DisruptionEvent
 from models.zone import Zone
 from schemas.worker import WorkerResponse
-from integrations.order_proxy import is_bandh_active
+from integrations.order_proxy import is_bandh_active, reset_zone_state
 from services.premium_calculator import compute_payout
+from config import get_settings
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -251,3 +252,39 @@ def list_zones(db: Session = Depends(get_db)):
         }
         for z in zones
     ]
+
+
+@router.get("/trigger-sources")
+def trigger_sources_status(db: Session = Depends(get_db)):
+    settings = get_settings()
+    return {
+        "mock_mode": settings.mock_mode,
+        "open_meteo": {"configured": True, "reachable": True, "note": "Free API, no key required"},
+        "waqi": {"configured": bool(settings.waqi_api_token), "reachable": bool(settings.waqi_api_token), "note": "WAQI token"},
+        "sachet": {"configured": True, "reachable": True, "note": "NDMA public RSS feed"},
+        "order_proxy": {"configured": True, "reachable": True, "note": "In-process mock"},
+        "bandh_mock": {"configured": True, "reachable": True, "note": "In-process mock"},
+    }
+
+
+@router.post("/global-reset")
+def global_reset(db: Session = Depends(get_db)):
+    """Close all open disruption events and reset all zone order/bandh flags."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    open_events = db.query(DisruptionEvent).filter(DisruptionEvent.ended_at == None).all()
+    for event in open_events:
+        event.ended_at = now
+
+    zones = db.query(Zone).all()
+    for zone in zones:
+        reset_zone_state(str(zone.id))
+
+    db.commit()
+    return {
+        "reset": True,
+        "events_closed": len(open_events),
+        "zones_reset": len(zones),
+        "message": f"Closed {len(open_events)} open event(s) and reset all zone flags.",
+    }
