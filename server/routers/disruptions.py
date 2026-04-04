@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -14,12 +15,13 @@ from schemas.disruption import (
 from services.trigger_engine import compute_severity, severity_to_tier
 from services.claims_service import process_disruption_event
 from integrations.order_proxy import set_bandh, simulate_weather_drop, compute_drop_pct, reset_zone_state
+from auth import require_admin, require_worker_or_admin, AuthPrincipal
 
 router = APIRouter(prefix="/api/disruptions", tags=["disruptions"])
 
 
 @router.get("/active", response_model=List[DisruptionEventResponse])
-def get_active_disruptions(db: Session = Depends(get_db)):
+def get_active_disruptions(db: Session = Depends(get_db), _: AuthPrincipal = Depends(require_worker_or_admin)):
     return (
         db.query(DisruptionEvent)
         .filter(DisruptionEvent.ended_at == None, DisruptionEvent.dual_trigger_fired == True)
@@ -30,7 +32,7 @@ def get_active_disruptions(db: Session = Depends(get_db)):
 
 
 @router.get("/zone/{zone_id}", response_model=List[DisruptionEventResponse])
-def get_zone_disruptions(zone_id: UUID, db: Session = Depends(get_db)):
+def get_zone_disruptions(zone_id: UUID, db: Session = Depends(get_db), _: AuthPrincipal = Depends(require_worker_or_admin)):
     return (
         db.query(DisruptionEvent)
         .filter(DisruptionEvent.zone_id == zone_id)
@@ -41,7 +43,7 @@ def get_zone_disruptions(zone_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.post("/simulate", response_model=SimulationResult, status_code=201)
-async def simulate_disruption(body: SimulateDisruptionRequest, db: Session = Depends(get_db)):
+async def simulate_disruption(body: SimulateDisruptionRequest, db: Session = Depends(get_db), _: AuthPrincipal = Depends(require_admin)):
     zone = db.query(Zone).filter(Zone.id == body.zone_id).first()
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
@@ -70,9 +72,34 @@ async def simulate_disruption(body: SimulateDisruptionRequest, db: Session = Dep
 
     dual_trigger = t1_confirmed and t2_confirmed
 
+    # Allow demo-time control for day-by-day claim simulation.
+    sim_start = body.simulation_start_at or datetime.now(timezone.utc)
+    if sim_start.tzinfo is None:
+        sim_start = sim_start.replace(tzinfo=timezone.utc)
+    sim_days = max(1, int(body.simulation_duration_days or 1))
+    sim_end = sim_start + timedelta(days=sim_days)
+
+    dedupe_start = sim_start - timedelta(minutes=2)
+    dedupe_end = sim_start + timedelta(minutes=2)
+    duplicate = (
+        db.query(DisruptionEvent)
+        .filter(
+            DisruptionEvent.zone_id == zone.id,
+            DisruptionEvent.event_type == body.event_type,
+            DisruptionEvent.source == EventSource.SIMULATION,
+            DisruptionEvent.started_at >= dedupe_start,
+            DisruptionEvent.started_at <= dedupe_end,
+        )
+        .first()
+    )
+    if duplicate and not body.idempotency_key:
+        raise HTTPException(
+            status_code=409,
+            detail="Duplicate simulation suppressed. Provide idempotency_key to intentionally replay.",
+        )
+
     # Severity + tier
     from services.trigger_engine import T1Result, T2Result
-    from models.disruption_event import EventType, EventSource
     t1 = T1Result(confirmed=t1_confirmed, raw_value=body.raw_value, threshold=threshold)
     t2 = T2Result(confirmed=t2_confirmed, drop_pct=order_drop_pct)
     severity = compute_severity(t1, t2)
@@ -90,6 +117,9 @@ async def simulate_disruption(body: SimulateDisruptionRequest, db: Session = Dep
         t2_confirmed=t2_confirmed,
         dual_trigger_fired=dual_trigger,
         payout_tier=tier,
+        is_honeypot=body.is_honeypot,
+        started_at=sim_start,
+        ended_at=sim_end,
     )
     db.add(event)
     db.commit()
@@ -117,15 +147,19 @@ async def simulate_disruption(body: SimulateDisruptionRequest, db: Session = Dep
         dual_trigger_fired=dual_trigger,
         severity_score=severity,
         payout_tier=tier,
+        simulation_start_at=sim_start,
+        simulation_end_at=sim_end,
+        simulation_duration_days=sim_days,
+        is_honeypot=body.is_honeypot,
         claims_created=claims_created,
         skipped_workers=skipped,
         message=f"Simulation complete for {zone.name}. "
-                f"{'Both triggers fired — claims generated.' if dual_trigger else 'Triggers did not both fire — no claims.'}"
+            f"{'Both triggers fired — ' + str(claims_created) + ' claims generated.' if dual_trigger else 'Triggers did not both fire — no claims.'}"
     )
 
 
 @router.post("/bandh/toggle")
-def toggle_bandh(body: BandhToggleRequest, db: Session = Depends(get_db)):
+def toggle_bandh(body: BandhToggleRequest, db: Session = Depends(get_db), _: AuthPrincipal = Depends(require_admin)):
     zone = db.query(Zone).filter(Zone.id == body.zone_id).first()
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")

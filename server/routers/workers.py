@@ -9,6 +9,7 @@ from models.policy import Policy, PolicyStatus
 from models.claim import Claim, ClaimStatus
 from models.disruption_event import DisruptionEvent
 from schemas.worker import WorkerCreate, WorkerUpdate, WorkerResponse, WorkerDashboard
+from auth import require_worker_or_admin, AuthPrincipal
 
 router = APIRouter(prefix="/api/workers", tags=["workers"])
 
@@ -35,7 +36,9 @@ def register_worker(body: WorkerCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{worker_id}", response_model=WorkerResponse)
-def get_worker(worker_id: UUID, db: Session = Depends(get_db)):
+def get_worker(worker_id: UUID, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
+    if principal.role == "worker" and principal.worker_id != worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     worker = db.query(Worker).filter(Worker.id == worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
@@ -43,7 +46,9 @@ def get_worker(worker_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.put("/{worker_id}", response_model=WorkerResponse)
-def update_worker(worker_id: UUID, body: WorkerUpdate, db: Session = Depends(get_db)):
+def update_worker(worker_id: UUID, body: WorkerUpdate, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
+    if principal.role == "worker" and principal.worker_id != worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     worker = db.query(Worker).filter(Worker.id == worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
@@ -57,7 +62,9 @@ def update_worker(worker_id: UUID, body: WorkerUpdate, db: Session = Depends(get
 
 
 @router.get("/{worker_id}/dashboard", response_model=WorkerDashboard)
-def get_dashboard(worker_id: UUID, db: Session = Depends(get_db)):
+def get_dashboard(worker_id: UUID, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
+    if principal.role == "worker" and principal.worker_id != worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     worker = db.query(Worker).filter(Worker.id == worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
@@ -113,6 +120,9 @@ def get_dashboard(worker_id: UUID, db: Session = Depends(get_db)):
                 "id": str(c.id),
                 "status": c.status.value,
                 "payout_amount": c.payout_amount,
+                "duration_hours": c.duration_hours,
+                "event_started_at": c.event_started_at.isoformat() if c.event_started_at else None,
+                "event_ended_at": c.event_ended_at.isoformat() if c.event_ended_at else None,
                 "llm_explanation": c.llm_explanation,
                 "created_at": c.created_at.isoformat(),
                 "trust_survey_response": c.trust_survey_response,

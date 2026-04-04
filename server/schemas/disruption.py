@@ -10,6 +10,10 @@ class SimulateDisruptionRequest(BaseModel):
     event_type: EventType
     raw_value: float
     force_t2: bool = False
+    idempotency_key: Optional[str] = None
+    simulation_start_at: Optional[datetime] = None
+    simulation_duration_days: int = 1
+    is_honeypot: bool = False
 
 
 class BandhToggleRequest(BaseModel):
@@ -46,6 +50,10 @@ class SimulationResult(BaseModel):
     dual_trigger_fired: bool
     severity_score: float
     payout_tier: PayoutTier
+    simulation_start_at: datetime
+    simulation_end_at: Optional[datetime] = None
+    simulation_duration_days: int
+    is_honeypot: bool
     claims_created: int
     skipped_workers: int
     message: str

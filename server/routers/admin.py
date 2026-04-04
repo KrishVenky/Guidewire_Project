@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
+import asyncio
+import httpx
 
 from database import get_db
 from models.worker import Worker
@@ -13,8 +15,12 @@ from models.zone import Zone
 from schemas.worker import WorkerResponse
 from integrations.order_proxy import is_bandh_active
 from services.premium_calculator import compute_payout
+from auth import require_admin
+from config import get_settings
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+settings = get_settings()
+
+router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
 @router.get("/dashboard")
@@ -251,3 +257,71 @@ def list_zones(db: Session = Depends(get_db)):
         }
         for z in zones
     ]
+
+
+@router.get("/trigger-sources")
+def trigger_sources_status(db: Session = Depends(get_db)):
+    zone = db.query(Zone).first()
+
+    if settings.mock_mode:
+        return {
+            "mock_mode": True,
+            "open_meteo": {
+                "configured": True,
+                "reachable": True,
+                "note": "Deterministic offline mock weather data",
+            },
+            "waqi": {
+                "configured": True,
+                "reachable": True,
+                "note": "Deterministic offline mock AQI data",
+            },
+            "sachet": {
+                "configured": True,
+                "reachable": True,
+                "note": "Official alerts disabled in mock mode",
+            },
+            "order_proxy": {"configured": True, "reachable": True, "note": "Mock"},
+            "bandh_mock": {"configured": True, "reachable": True, "note": "Mock"},
+        }
+
+    async def _check_open_meteo():
+        if not zone:
+            return {"configured": False, "reachable": False, "note": "No zones configured"}
+        from integrations.open_meteo import get_current
+        try:
+            _ = await get_current(zone.open_meteo_lat, zone.open_meteo_lng)
+            return {"configured": True, "reachable": True}
+        except Exception as e:
+            return {"configured": True, "reachable": False, "note": str(e)}
+
+    async def _check_waqi():
+        configured = bool(settings.waqi_api_token)
+        if not zone or not configured:
+            return {"configured": configured, "reachable": False if configured else None}
+        from integrations.waqi import get_current
+        try:
+            _ = await get_current(zone.waqi_station_id)
+            return {"configured": True, "reachable": True}
+        except Exception as e:
+            return {"configured": True, "reachable": False, "note": str(e)}
+
+    async def _check_sachet():
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get("https://sachet.ndma.gov.in/cap_public_website/FeedPage")
+                return {"configured": True, "reachable": resp.status_code == 200}
+        except Exception as e:
+            return {"configured": True, "reachable": False, "note": str(e)}
+
+    open_meteo = asyncio.run(_check_open_meteo())
+    waqi = asyncio.run(_check_waqi())
+    sachet = asyncio.run(_check_sachet())
+
+    return {
+        "open_meteo": open_meteo,
+        "waqi": waqi,
+        "sachet": sachet,
+        "order_proxy": {"configured": True, "reachable": True},
+        "bandh_mock": {"configured": True, "reachable": True},
+    }

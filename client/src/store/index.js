@@ -6,11 +6,24 @@ export const useStore = create(
     (set) => ({
       workerId: null,
       workerData: null,
+      workerToken: null,
       isAdmin: false,
+      adminToken: null,
       setWorker: (id, data) => set({ workerId: id, workerData: data }),
+      setWorkerAuth: (id, data, token) => set({ workerId: id, workerData: data, workerToken: token }),
       setAdmin: (val) => set({ isAdmin: val }),
-      logout: () => set({ workerId: null, workerData: null, isAdmin: false }),
+      setAdminAuth: (token) => set({ isAdmin: true, adminToken: token }),
+      logout: () => set({ workerId: null, workerData: null, workerToken: null, isAdmin: false, adminToken: null }),
     }),
-    { name: 'rainready-store', partialize: (state) => ({ workerId: state.workerId, workerData: state.workerData }) }
+    {
+      name: 'rainready-store',
+      partialize: (state) => ({
+        workerId: state.workerId,
+        workerData: state.workerData,
+        workerToken: state.workerToken,
+        isAdmin: state.isAdmin,
+        adminToken: state.adminToken,
+      }),
+    }
   )
 )

@@ -61,8 +61,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from routers import workers, policies, claims, disruptions, admin, llm
+from routers import auth, workers, policies, claims, disruptions, admin, llm
 
+app.include_router(auth.router)
 app.include_router(workers.router)
 app.include_router(policies.router)
 app.include_router(claims.router)

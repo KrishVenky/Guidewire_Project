@@ -5,6 +5,29 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+api.interceptors.request.use((config) => {
+  try {
+    const raw = localStorage.getItem('rainready-store')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      const state = parsed?.state || {}
+      const token = state.workerToken || state.adminToken
+      if (token) {
+        config.headers = config.headers || {}
+        config.headers.Authorization = `Bearer ${token}`
+      }
+    }
+  } catch (_) {
+    // Ignore storage parsing errors and continue request without auth header.
+  }
+  return config
+})
+
+// Auth
+export const requestWorkerOtp = (phone) => api.post('/auth/worker/request-otp', { phone })
+export const verifyWorkerOtp = (phone, otp) => api.post('/auth/worker/verify-otp', { phone, otp })
+export const adminLogin = (pin) => api.post('/auth/admin/login', { pin })
+
 // Workers
 export const lookupWorkerByPhone = (phone) => api.get('/workers/lookup', { params: { phone } })
 export const registerWorker = (data) => api.post('/workers/register', data)
@@ -39,6 +62,7 @@ export const getAllWorkers = () => api.get('/admin/workers')
 export const getFinancialSummary = () => api.get('/admin/financial-summary')
 export const getZoneTrustScores = () => api.get('/admin/zone-trust-scores')
 export const getZones = () => api.get('/admin/zones')
+export const getTriggerSources = () => api.get('/admin/trigger-sources')
 
 // LLM
 export const explainClaim = (claimId) => api.post('/llm/explain-claim', { claim_id: claimId })

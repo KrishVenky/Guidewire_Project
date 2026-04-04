@@ -12,6 +12,7 @@ from models.policy import Policy, PolicyStatus
 from models.disruption_event import DisruptionEvent
 from models.worker import Worker
 from services import fraud_detector, premium_calculator, payout_service, llm_service
+from ml import fraud_model
 
 
 async def process_disruption_event(
@@ -77,6 +78,28 @@ async def process_disruption_event(
             .count()
         )
 
+        previous_claim = (
+            db.query(Claim)
+            .filter(Claim.worker_id == worker.id)
+            .order_by(Claim.created_at.desc())
+            .first()
+        )
+        days_since_last_claim = 30.0
+        if previous_claim and previous_claim.created_at:
+            days_since_last_claim = max(
+                0.0,
+                (datetime.utcnow() - previous_claim.created_at.replace(tzinfo=None)).total_seconds() / 86400,
+            )
+
+        claim_hour = (event.started_at.hour if event.started_at else datetime.utcnow().hour)
+        income_ratio = (worker.avg_weekly_income / zone_avg_income) if zone_avg_income > 0 else 1.0
+        isolation_score = fraud_model.score(
+            claim_hour=claim_hour,
+            days_since_last_claim=days_since_last_claim,
+            income_ratio=income_ratio,
+            order_drop_pct=event.order_drop_pct or 0.0,
+        )
+
         fraud_result = fraud_detector.evaluate(
             worker_zone_id=str(worker.zone_id),
             event_zone_id=str(event.zone_id),
@@ -87,6 +110,7 @@ async def process_disruption_event(
             zone_avg_income=zone_avg_income,
             existing_claim_for_event=existing is not None,
             is_honeypot=event.is_honeypot,
+            isolation_forest_score=isolation_score,
             worker_trust_tier=worker.trust_tier.value,
         )
 

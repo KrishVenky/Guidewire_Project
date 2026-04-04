@@ -13,6 +13,7 @@ from models.payout import Payout, PayoutStatus
 from models.zone import Zone
 from schemas.policy import PolicyCreate, PolicyUpdate, PolicyResponse, PremiumBreakdown
 from services.premium_calculator import calculate
+from auth import require_worker_or_admin, AuthPrincipal
 
 LOSS_RATIO_SUSPEND_THRESHOLD = 0.85
 
@@ -30,7 +31,9 @@ router = APIRouter(prefix="/api/policies", tags=["policies"])
 
 
 @router.get("/premium/calculate", response_model=PremiumBreakdown)
-def calculate_premium(worker_id: UUID, db: Session = Depends(get_db)):
+def calculate_premium(worker_id: UUID, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
+    if principal.role == "worker" and principal.worker_id != worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     worker = db.query(Worker).filter(Worker.id == worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
@@ -51,7 +54,9 @@ def calculate_premium(worker_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.post("/create", response_model=PolicyResponse, status_code=201)
-def create_policy(body: PolicyCreate, db: Session = Depends(get_db)):
+def create_policy(body: PolicyCreate, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
+    if principal.role == "worker" and principal.worker_id != body.worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     worker = db.query(Worker).filter(Worker.id == body.worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
@@ -105,18 +110,22 @@ def create_policy(body: PolicyCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{policy_id}", response_model=PolicyResponse)
-def get_policy(policy_id: UUID, db: Session = Depends(get_db)):
+def get_policy(policy_id: UUID, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
     policy = db.query(Policy).filter(Policy.id == policy_id).first()
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
+    if principal.role == "worker" and principal.worker_id != policy.worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     return policy
 
 
 @router.put("/{policy_id}/pause", response_model=PolicyResponse)
-def pause_policy(policy_id: UUID, db: Session = Depends(get_db)):
+def pause_policy(policy_id: UUID, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
     policy = db.query(Policy).filter(Policy.id == policy_id).first()
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
+    if principal.role == "worker" and principal.worker_id != policy.worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     policy.status = PolicyStatus.PAUSED
     db.commit()
     db.refresh(policy)
@@ -124,10 +133,12 @@ def pause_policy(policy_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.put("/{policy_id}", response_model=PolicyResponse)
-def update_policy(policy_id: UUID, body: PolicyUpdate, db: Session = Depends(get_db)):
+def update_policy(policy_id: UUID, body: PolicyUpdate, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
     policy = db.query(Policy).filter(Policy.id == policy_id).first()
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
+    if principal.role == "worker" and principal.worker_id != policy.worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     if body.status:
         policy.status = body.status
     db.commit()
@@ -136,5 +147,7 @@ def update_policy(policy_id: UUID, body: PolicyUpdate, db: Session = Depends(get
 
 
 @router.get("/worker/{worker_id}", response_model=List[PolicyResponse])
-def get_worker_policies(worker_id: UUID, db: Session = Depends(get_db)):
+def get_worker_policies(worker_id: UUID, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
+    if principal.role == "worker" and principal.worker_id != worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     return db.query(Policy).filter(Policy.worker_id == worker_id).all()
