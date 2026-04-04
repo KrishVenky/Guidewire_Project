@@ -17,3 +17,4 @@ faker==24.11.0
 joblib==1.4.2
 groq==0.8.0
 python-multipart==0.0.9
+PyJWT==2.8.0

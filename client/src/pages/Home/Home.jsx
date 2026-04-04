@@ -16,13 +16,21 @@ export default function Home() {
         <div className="bg-white rounded-2xl shadow-2xl p-8 space-y-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-800 mb-1">Delivery Partner</h2>
-            <p className="text-gray-500 text-sm mb-3">Register or access your coverage dashboard</p>
-            <button
-              onClick={() => navigate(workerId ? '/dashboard' : '/onboarding')}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors"
-            >
-              {workerId ? 'Go to Dashboard' : 'Get Started'}
-            </button>
+            <p className="text-gray-500 text-sm mb-3">Login and registration are now separate for easier access</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                onClick={() => navigate(workerId ? '/dashboard' : '/worker/login')}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                {workerId ? 'Go to Dashboard' : 'Worker Login'}
+              </button>
+              <button
+                onClick={() => navigate('/worker/register')}
+                className="w-full border border-blue-600 text-blue-700 hover:bg-blue-50 font-semibold py-3 rounded-xl transition-colors"
+              >
+                Register
+              </button>
+            </div>
           </div>
 
           <div className="border-t border-gray-100 pt-4">

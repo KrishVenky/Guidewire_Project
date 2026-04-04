@@ -1,6 +1,9 @@
 import httpx
 from dataclasses import dataclass
 from typing import Optional
+from config import get_settings
+
+settings = get_settings()
 
 
 @dataclass
@@ -17,6 +20,20 @@ BASE_URL = "https://api.open-meteo.com/v1/forecast"
 
 
 async def get_current(lat: float, lng: float, rain_threshold: float = 50.0) -> MeteoData:
+    if settings.mock_mode:
+        # Deterministic mock weather for demos: stable values, no network dependency.
+        base = abs(int((lat + lng) * 100)) % 10
+        rain = float(12 + base)
+        temp = float(31 + (base % 4))
+        return MeteoData(
+            precipitation_mm_hr=rain,
+            temperature_2m=temp,
+            apparent_temperature=temp + 1.5,
+            wind_speed=7.0,
+            forecast_rain_6hr=rain + 3.0,
+            forecast_breach_prob=0.0 if rain_threshold > (rain + 3.0) else 0.5,
+        )
+
     params = {
         "latitude": lat,
         "longitude": lng,

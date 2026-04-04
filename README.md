@@ -19,6 +19,16 @@ Existing insurance products don't help. Government schemes cover accidents and h
 
 Hermetical is a **dual-trigger parametric income insurance platform** built specifically for Zomato, Swiggy, and Blinkit delivery partners. Workers pay a small weekly premium. When a verified external disruption hits their zone, coverage activates automatically. No claim forms. No waiting. Payout lands in their UPI within minutes.
 
+### Admin Operations (Current)
+
+The admin dashboard now supports operational review workflows needed for demos and manual controls:
+
+- Trigger source health view (Open-Meteo, WAQI, SACHET, order proxy, bandh)
+- Pending-claim review with fraud reasons and approve/reject actions
+- Zone control (bandh activate/clear)
+- Simulation presets and day-by-day timeline replay
+- **Driver directory**: fetch, search, and inspect driver details (identity, platform, trust tier, KYC, income/hours)
+
 ### What Makes This Different
 
 Most parametric systems use a single trigger — "it rained, here's money." The problem is **basis risk**: it rained in one part of the city but your zone was fine, or the platform was still running deliveries. A single weather reading is not proof of income loss.
@@ -198,7 +208,7 @@ The LLM **never** makes any financial decision. All decisions (trigger fired, pa
 | Worker frontend | React Native + Expo (Phase 3) / React PWA (Phase 2) | Real device target, Expo Go for judge demos |
 | Admin frontend | React 18 + Vite + TailwindCSS | Web is correct for admin/insurer |
 | Backend | Python 3.11 + FastAPI | Async, typed, excellent for data pipelines |
-| Database | Supabase (hosted PostgreSQL) | Free hosted DB, phone OTP auth, realtime subscriptions |
+| Database | PostgreSQL (Docker for local, portable to Supabase/managed Postgres) | Stable relational core for policies, claims, and payouts |
 | LLM | Groq API — Llama 3.1 8B | Judge machine compatible, fast inference, free tier, template fallback |
 | ML models | scikit-learn (XGBoost + Isolation Forest) | Local training on seeded data, zero cost, serialized via joblib |
 | Task scheduling | APScheduler in FastAPI (Phase 2) → Celery + Redis (Phase 3) | Complexity scales with need |
@@ -211,6 +221,17 @@ The LLM **never** makes any financial decision. All decisions (trigger fired, pa
 ---
 
 ## API Strategy
+
+### Mock-First Runtime (for demos)
+
+RainReady now runs in **mock-first mode** by default (`MOCK_MODE=true`) so judge demos are deterministic and do not depend on live external APIs.
+
+- Open-Meteo integration serves deterministic offline weather values
+- WAQI integration serves deterministic offline AQI values
+- SACHET integration is offline-safe in mock mode
+- Admin trigger health explicitly reports mock-mode source status
+
+This keeps the full claim pipeline stable in local and Docker environments.
 
 ### Weather and Environmental (T1 Triggers)
 
@@ -244,22 +265,29 @@ Run the entire collection in sequence via Collection Runner to walk through the 
 ## Repository Structure
 
 ```
-rainready/
-├── client/                        # React PWA (Phase 2) / React Native (Phase 3)
-│   ├── worker-app/                # Worker-facing mobile interface
-│   └── admin-dashboard/           # Admin / insurer web dashboard
-├── server/                        # FastAPI Python backend
-│   ├── api/                       # Route handlers
-│   ├── engine/                    # Trigger engine (deterministic rules)
-│   ├── ml/                        # XGBoost premium model, Isolation Forest fraud
-│   ├── adaptive/                  # Zone threshold recalibration logic
-│   ├── llm/                       # Groq integration + fallback templates
-│   └── jobs/                      # APScheduler polling jobs
+Guidewire_Project/
+├── client/                        # React PWA frontend (worker + admin)
+│   └── src/
+│      ├── pages/                  # Home, onboarding, login, admin, worker dashboard
+│      ├── api/                    # Axios API client
+│      └── store/                  # Zustand auth/session store
+├── server/                        # FastAPI backend
+│   ├── main.py                    # App bootstrap + router registration
+│   ├── auth.py                    # JWT/RBAC helpers
+│   ├── routers/                   # auth, workers, policies, claims, disruptions, admin, llm
+│   ├── services/                  # trigger, claims, payouts, fraud, premium, llm logic
+│   ├── integrations/              # open_meteo, waqi, sachet, order proxy, razorpay mock
+│   ├── jobs/                      # APScheduler polling and premium jobs
+│   ├── models/                    # SQLAlchemy entities
+│   ├── schemas/                   # Pydantic request/response models
+│   ├── ml/                        # premium + fraud model artifacts/code
+│   └── seeds/                     # zone and deterministic demo-user seeds
 ├── postman/
 │   ├── Hermetical_Phase2.postman_collection.json
 │   └── Hermetical.postman_environment.json
 ├── scripts/
-│   └── seed_historical_data.py    # Faker + pandas — 90-day zone baseline seeder
+│   └── seed_historical_data.py    # Historical baseline seed script
+├── Makefile                       # Common dev tasks (up/down/seed)
 ├── docker-compose.yml             # One-command local setup
 ├── .env.example                   # API keys config — app works without LLM key
 ├── README.md                      # This file
@@ -276,20 +304,20 @@ rainready/
 - [x] 2-minute strategy video
 
 ### Phase 2 — Automation and Protection (March 21–April 4)
-- [ ] Project scaffold — server (FastAPI) + client (React PWA)
-- [ ] DB schema + migrations (Supabase PostgreSQL)
-- [ ] Historical baseline seeder (90-day mock data via Faker + pandas)
-- [ ] Worker registration + phone OTP flow
-- [ ] Insurance policy management (create, pause, cancel)
-- [ ] Dynamic premium calculation — XGBoost model trained on seeded data
-- [ ] All 5 disruption triggers live (Open-Meteo, WAQI, SACHET, order-drop proxy, bandh mock)
-- [ ] Dual-trigger claims engine with severity scoring
-- [ ] Isolation Forest fraud detection
-- [ ] Earnings velocity profiling per worker
-- [ ] Razorpay mock payout simulation
-- [ ] Post-payout Hinglish survey — zone trust scores on admin dashboard
-- [ ] Groq LLM layer + Hinglish fallback templates
-- [ ] Postman test collection (Phase 2 full coverage)
+- [x] Project scaffold — server (FastAPI) + client (React PWA)
+- [ ] DB schema + migrations (portable PostgreSQL; formal Alembic migrations pending)
+- [x] Historical baseline seeder (90-day mock data via Faker + pandas)
+- [x] Worker registration + OTP login flow + admin login
+- [ ] Insurance policy management (create/pause/update done; cancel flow pending)
+- [x] Dynamic premium calculation — model-backed with deterministic fallback path
+- [x] All 5 disruption triggers live (Open-Meteo, WAQI, SACHET, order-drop proxy, bandh mock)
+- [x] Dual-trigger claims engine with severity scoring
+- [x] Isolation Forest fraud detection in live claim path
+- [ ] Earnings velocity profiling per worker (core payout approximation implemented; dedicated profiling module pending)
+- [x] Razorpay mock payout simulation
+- [x] Post-payout Hinglish survey — zone trust scores on admin dashboard
+- [x] Groq LLM layer + Hinglish fallback templates
+- [x] Postman test collection (Phase 2 full coverage)
 - [ ] 2-minute demo video
 
 ### Phase 3 — Scale and Optimise (April 5–17)
@@ -340,7 +368,7 @@ Hermetical is designed for recoverable, zone-level disruptions. For economy-wide
 ## Team
 
 Shubhang, Puranddar, Kanishk, Nahush, Krishna — PES University
-Guidewire DEVTrails 2026 | Built with FastAPI · React Native · Supabase · Groq · scikit-learn
+Guidewire DEVTrails 2026 | Built with FastAPI · React (PWA) · PostgreSQL · Groq · scikit-learn
 
 ---
 

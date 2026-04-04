@@ -3,6 +3,9 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    # Runtime mode
+    mock_mode: bool = True
+
     # Database
     database_url: str = "postgresql://rainready:rainready@localhost:5432/rainready"
 
@@ -23,6 +26,10 @@ class Settings(BaseSettings):
 
     # App
     secret_key: str = "change_this_in_production"
+    jwt_exp_minutes: int = 480
+    otp_exp_minutes: int = 5
+    admin_pin: str = "admin123"
+    auth_debug_return_otp: bool = True
     debug: bool = True
     mock_mode: bool = True
     cors_origins: str = "http://localhost:5173,http://localhost:3000"

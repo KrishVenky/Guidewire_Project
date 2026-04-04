@@ -8,6 +8,7 @@ from database import get_db
 from models.claim import Claim
 from models.worker import Worker
 from services.llm_service import generate_claim_explanation, onboarding_chat
+from auth import require_worker_or_admin, AuthPrincipal
 
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 
@@ -23,10 +24,12 @@ class OnboardingChatRequest(BaseModel):
 
 
 @router.post("/explain-claim")
-async def explain_claim(body: ExplainClaimRequest, db: Session = Depends(get_db)):
+async def explain_claim(body: ExplainClaimRequest, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
     claim = db.query(Claim).filter(Claim.id == body.claim_id).first()
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
+    if principal.role == "worker" and principal.worker_id != claim.worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     event = claim.disruption_event
     zone_name = event.zone.name if event and event.zone else "your zone"
@@ -48,7 +51,9 @@ async def explain_claim(body: ExplainClaimRequest, db: Session = Depends(get_db)
 
 
 @router.post("/onboarding-chat")
-async def chat(body: OnboardingChatRequest, db: Session = Depends(get_db)):
+async def chat(body: OnboardingChatRequest, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
+    if principal.role == "worker" and principal.worker_id != body.worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     worker = db.query(Worker).filter(Worker.id == body.worker_id).first()
 
     worker_context = {}

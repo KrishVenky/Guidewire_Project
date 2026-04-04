@@ -40,6 +40,7 @@ services:
     environment:
       DATABASE_URL: postgresql://rainready:rainready@postgres:5432/rainready
       REDIS_URL: redis://redis:6379/0
+      MOCK_MODE: "true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +54,8 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
+    environment:
+      VITE_API_URL: http://server:8000
     ports:
       - "5173:5173"
     depends_on:

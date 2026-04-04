@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -37,6 +38,23 @@ async def poll_and_evaluate():
                 )
 
                 if t1.confirmed and t2.confirmed and tier.value != "NONE":
+                    dedupe_since = datetime.utcnow() - timedelta(minutes=30)
+                    existing = (
+                        db.query(DisruptionEvent)
+                        .filter(
+                            DisruptionEvent.zone_id == zone.id,
+                            DisruptionEvent.event_type == t1.event_type,
+                            DisruptionEvent.dual_trigger_fired == True,
+                            DisruptionEvent.started_at >= dedupe_since,
+                        )
+                        .first()
+                    )
+                    if existing:
+                        logger.info(
+                            f"[Scheduler] Duplicate suppressed zone={zone.name} type={t1.event_type.value}"
+                        )
+                        continue
+
                     event = DisruptionEvent(
                         zone_id=zone.id,
                         event_type=t1.event_type,

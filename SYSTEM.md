@@ -1,8 +1,19 @@
-# SYSTEM.md — Hermetical Internal System Brain
+# SYSTEM.md — RainReady Internal System Brain
 
 > **FOR:** Developers, coding agents, LLMs working on this codebase
 > **PURPOSE:** Complete implementation reference. Every component, endpoint, data model, directory, integration, and test status documented here. Read this before touching any file.
 > **RULE:** Every time a component reaches stable status, this document is updated. Never let SYSTEM.md fall behind the codebase.
+
+## Current Implementation Delta (April 2026)
+
+- Authentication is OTP + JWT based via `/api/auth/*` routes.
+- Role-based access is enforced across worker/admin endpoints.
+- Runtime is mock-first by default (`MOCK_MODE=true` in Docker), with deterministic offline integration behavior for Open-Meteo, WAQI, and SACHET.
+- Admin dashboard includes:
+    - Trigger source health panel (mock-aware)
+    - Claims fraud review panel
+    - Simulation presets with timeline replay controls
+    - **Workers tab** for fetching, searching, and inspecting driver details
 
 ---
 
@@ -59,39 +70,29 @@ External APIs (SACHET, Open-Meteo, WAQI)
 ## 2. Repository Structure
 
 ```
-rainready/
+Guidewire_Project/
 │
 ├── README.md                         # Hackathon submission doc (public)
 ├── SYSTEM.md                         # This file (internal brain)
 ├── docker-compose.yml                # Spins up: server, client, postgres, redis
+├── Makefile                          # Convenience targets (up/down/seed-demo)
 ├── .env.example                      # Copy to .env and fill values
 │
 ├── client/                           # React 18 + Vite + TailwindCSS (Phase 2 PWA)
-│   ├── public/
 │   ├── src/
 │   │   ├── main.jsx                  # Entry point
 │   │   ├── App.jsx                   # Router root
-│   │   ├── components/               # Shared UI components
-│   │   │   ├── ui/                   # Primitive components (Button, Card, Badge)
-│   │   │   ├── layout/               # Navbar, Sidebar, PageWrapper
-│   │   │   └── charts/               # Recharts wrappers for dashboards
 │   │   ├── pages/                    # Route-level page components
 │   │   │   ├── Onboarding/           # Worker registration flow
+│   │   │   ├── WorkerLogin/          # Worker OTP login flow
 │   │   │   ├── WorkerDashboard/      # Worker-facing dashboard
 │   │   │   ├── AdminDashboard/       # Insurer/admin dashboard
-│   │   │   ├── Policy/               # Policy view + management
-│   │   │   ├── Claims/               # Claims history + status
-│   │   │   └── DisruptionMap/        # Live zone disruption view
-│   │   ├── hooks/                    # Custom React hooks
-│   │   │   ├── useWorker.js          # Worker auth + profile state
-│   │   │   ├── usePolicy.js          # Policy fetch + status
-│   │   │   ├── useClaims.js          # Claims data
-│   │   │   └── useDisruptions.js     # Live disruption feed
+│   │   │   └── Home/                 # Landing and role entrypoints
 │   │   ├── api/                      # Axios client + endpoint functions
 │   │   │   └── index.js              # All API calls defined here
 │   │   ├── store/                    # Zustand global state
 │   │   │   └── index.js
-│   │   └── utils/                    # Helper functions, formatters
+│   │   └── index.css
 │   ├── index.html
 │   ├── vite.config.js
 │   ├── tailwind.config.js
@@ -118,10 +119,10 @@ rainready/
 │   │   └── disruption.py
 │   │
 │   ├── routers/                      # FastAPI route handlers
+│   │   ├── auth.py                   # /api/auth/* (OTP/admin login + JWT)
 │   │   ├── workers.py                # /api/workers/*
 │   │   ├── policies.py               # /api/policies/*
 │   │   ├── claims.py                 # /api/claims/*
-│   │   ├── payouts.py                # /api/payouts/*
 │   │   ├── disruptions.py            # /api/disruptions/*
 │   │   ├── admin.py                  # /api/admin/*
 │   │   └── llm.py                    # /api/llm/* (communication only)
@@ -131,50 +132,36 @@ rainready/
 │   │   ├── premium_calculator.py     # Weekly premium computation
 │   │   ├── fraud_detector.py         # Fraud rule evaluation
 │   │   ├── payout_service.py         # Razorpay mock integration
+│   │   ├── claims_service.py         # Claims generation + fraud + payout orchestration
 │   │   ├── llm_service.py            # Groq client (comm layer only) + template fallback
-│   │   └── notification_service.py   # Worker notifications
+│   │   └── trigger_engine.py         # Signal normalization + tier mapping
 │   │
 │   ├── integrations/                 # External API clients
 │   │   ├── sachet.py                 # SACHET NDMA RSS feed parser
 │   │   ├── open_meteo.py             # Open-Meteo weather client (free, no key)
 │   │   ├── waqi.py                   # WAQI AQI API client
 │   │   ├── order_proxy.py            # Simulated zone order-rate microservice
-│   │   ├── bandh_signal.py           # Mock bandh/curfew signal (admin-togglable)
 │   │   └── razorpay_mock.py          # Mock payout gateway
 │   │
 │   ├── jobs/                         # APScheduler background jobs
-│   │   ├── scheduler.py              # APScheduler instance + job registration
-│   │   ├── poll_disruptions.py       # Every 5min: fetch all external APIs per zone
-│   │   ├── evaluate_triggers.py      # Every 5min: run DTPM evaluation per zone
-│   │   ├── process_payouts.py        # Async payout processing
-│   │   └── weekly_premium.py         # Monday 06:00 IST: deduct weekly premiums
+│   │   └── scheduler.py              # APScheduler instance + job registration
 │   │
 │   ├── ml/                           # ML models (trained offline, loaded at startup)
 │   │   ├── train_premium_model.py    # XGBoost training script (run once)
 │   │   ├── premium_model.joblib      # Serialized XGBoost model
 │   │   ├── fraud_model.py            # Isolation Forest anomaly scorer
-│   │   └── earnings_velocity.py      # Per-worker hourly earning rate profiler
-│   │
-│   ├── migrations/                   # Alembic DB migrations
-│   │   └── versions/
+│   │   └── isolation_forest.joblib   # Serialized fraud model
 │   │
 │   ├── seeds/                        # Dev seed data
 │   │   ├── zones.py                  # Bengaluru zones seed (4 zones)
-│   │   ├── workers.py                # Mock worker profiles
-│   │   └── historical_activity.py    # Zone activity baseline (90-day mock)
-│   │
-│   ├── tests/                        # Pytest test suite
-│   │   ├── test_trigger_engine.py
-│   │   ├── test_premium_calculator.py
-│   │   ├── test_fraud_detector.py
-│   │   └── test_api_endpoints.py
+│   │   └── demo_users.py             # Deterministic U001–U008 seed pack
 │   │
 │   ├── requirements.txt
 │   └── Dockerfile
 │
 ├── postman/                          # API test suite
-│   ├── Hermetical_Phase2.postman_collection.json   # Full Phase 2 endpoint coverage
-│   └── Hermetical.postman_environment.json         # Environment (base_url, auto-captured IDs)
+│   ├── RainReady_Phase2.postman_collection.json   # Full Phase 2 endpoint coverage
+│   └── RainReady.postman_environment.json         # Environment (base_url, auto-captured IDs)
 │
 └── scripts/
     └── seed_historical_data.py       # Standalone seeder (can run outside Docker)
@@ -351,8 +338,8 @@ Reads from `.env` via pydantic-settings. Key variables listed in Section 11.
 #### Disruptions — `/api/disruptions`
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| GET | `/active` | Get all currently active disruptions | None |
-| GET | `/zone/{zone_id}` | Disruptions for specific zone | None |
+| GET | `/active` | Get all currently active disruptions | Worker/Admin |
+| GET | `/zone/{zone_id}` | Disruptions for specific zone | Worker/Admin |
 | POST | `/simulate` | Dev only — trigger a mock disruption | Admin |
 | POST | `/bandh/toggle` | Toggle bandh signal for a zone | Admin |
 
@@ -364,12 +351,14 @@ Reads from `.env` via pydantic-settings. Key variables listed in Section 11.
 | GET | `/workers` | All registered workers | Admin |
 | GET | `/financial-summary` | Loss ratios, payout totals | Admin |
 | GET | `/zone-trust-scores` | Post-payout survey trust scores per zone | Admin |
+| GET | `/trigger-sources` | Source health and mock-mode status | Admin |
+| GET | `/stress-test` | Scenario BCR stress simulation | Admin |
 
 #### LLM — `/api/llm`
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | `/explain-claim` | Generate Hinglish claim explanation | Internal |
-| POST | `/onboarding-chat` | Conversational onboarding Q&A | Worker |
+| POST | `/explain-claim` | Generate Hinglish claim explanation | Worker/Admin |
+| POST | `/onboarding-chat` | Conversational onboarding Q&A | Worker/Admin |
 
 #### Health
 | Method | Path | Description |
@@ -382,29 +371,23 @@ Reads from `.env` via pydantic-settings. Key variables listed in Section 11.
 
 ### Routing Structure (`App.jsx`)
 ```
-/                         → Redirect to /onboarding or /dashboard
-/onboarding               → Multi-step worker registration
-/dashboard                → WorkerDashboard (requires auth)
-/dashboard/policy         → Policy details + management
-/dashboard/claims         → Claims history
-/dashboard/disruptions    → Live disruption map for worker's zone
-/admin                    → AdminDashboard (requires admin auth)
-/admin/claims             → Pending claims review queue
-/admin/analytics          → Loss ratios, risk analytics
-/admin/zone-trust         → Zone trust score dashboard (post-payout surveys)
+/                         → Home (role entry)
+/worker/register          → Worker registration flow
+/worker/login             → Worker OTP login flow
+/onboarding               → Redirect to /worker/register
+/dashboard/*              → WorkerDashboard (requires worker token)
+/admin                    → AdminDashboard (requires admin token)
 ```
 
 ### Key Pages
 
 #### Onboarding (`/pages/Onboarding/`)
-Multi-step flow — 5 steps:
-1. Phone number entry + OTP (mocked via Supabase Auth)
-2. Personal details (name, platform, zone selection)
-3. UPI ID entry + income/hours declaration
-4. LLM chat assistant: explains policy in Hinglish, answers questions
-5. Premium preview → confirm + activate policy
+Registration-only flow:
+1. Mobile number capture
+2. Personal, zone, income and UPI details
+3. Registration success and redirect to Worker Login
 
-State is local to the onboarding flow (no global store needed until Step 5).
+Login is handled in `/pages/WorkerLogin/` using OTP request + verify API.
 
 #### WorkerDashboard (`/pages/WorkerDashboard/`)
 Shows:
@@ -422,11 +405,12 @@ Shows:
 - Total active policies
 - This week's disruption events
 - Claims pipeline (auto-approved / pending review / paid)
-- Loss ratio chart (Recharts LineChart)
-- Zone risk heatmap (styled grid, no Google Maps dependency)
+- Trigger-source health (mock-aware)
 - Zone trust scores from post-payout surveys
 - Bandh signal toggle per zone
-- Predictive alert: next 48h disruption probability per zone
+- Timeline simulation controls + scenario presets
+- Fraud intelligence panel
+- Workers tab: fetch/search/inspect driver details
 
 #### DisruptionMap (`/pages/DisruptionMap/`)
 Styled zone grid — each Bengaluru zone color-coded (green/yellow/orange/red) based on active disruption level. No Google Maps dependency.
@@ -501,7 +485,7 @@ Called after a claim is created. Returns a Hinglish explanation of:
 
 **System prompt template:**
 ```
-You are Hermetical's assistant. Explain the following insurance claim decision
+You are RainReady's assistant. Explain the following insurance claim decision
 to a delivery worker in simple Hindi-English mix (Hinglish).
 Be warm, clear, and under 100 words. Do not use technical terms.
 Never suggest the decision could be wrong.
@@ -520,11 +504,11 @@ Handles conversational onboarding. Answers questions about coverage, premium, pa
 
 **System prompt template:**
 ```
-You are Hermetical's onboarding assistant for delivery workers.
-Answer only questions about Hermetical insurance.
+You are RainReady's onboarding assistant for delivery workers.
+Answer only questions about RainReady insurance.
 Speak in simple Hinglish. Be brief (under 80 words per reply).
 Worker context: {worker_context}
-If asked anything not related to Hermetical, politely redirect.
+If asked anything not related to RainReady, politely redirect.
 ```
 
 ### What the LLM Must NEVER Do
@@ -707,8 +691,11 @@ Score > 0.7 → MANUAL_REVIEW status on claim. Flagged claims are quarantined, n
 Copy `.env.example` to `.env`:
 
 ```bash
-# Database (Supabase hosted PostgreSQL)
-DATABASE_URL=postgresql://user:password@db.supabase.co:5432/postgres
+# Runtime mode
+MOCK_MODE=true
+
+# Database (local docker default)
+DATABASE_URL=postgresql://rainready:rainready@localhost:5432/rainready
 
 # Redis (for Phase 3 Celery migration — also used for API response caching in Phase 2)
 REDIS_URL=redis://localhost:6379/0
@@ -726,6 +713,10 @@ RAZORPAY_KEY_SECRET=mock_secret
 
 # App
 SECRET_KEY=change_this_in_production
+JWT_EXP_MINUTES=480
+OTP_EXP_MINUTES=5
+ADMIN_PIN=admin123
+AUTH_DEBUG_RETURN_OTP=true
 DEBUG=true
 CORS_ORIGINS=http://localhost:5173
 ```
@@ -747,12 +738,12 @@ Note: No `ollama` service. LLM runs via Groq API (cloud). No GPU passthrough nee
 
 ### One-Command Start
 ```bash
-docker-compose up --build
+docker compose up -d --build
 ```
 
 ### Seeding (first run)
 ```bash
-docker exec -it rainready-server-1 python scripts/seed_historical_data.py
+make seed-demo
 ```
 
 ---
@@ -800,13 +791,13 @@ pytest tests/ -v
 ### Postman API Test Suite
 Located in `postman/`. Import both files into Postman:
 
-1. **`Hermetical_Phase2.postman_collection.json`** — Full Phase 2 endpoint coverage
+1. **`RainReady_Phase2.postman_collection.json`** — Full Phase 2 endpoint coverage
    - Organized into folders: Health, Worker Registration, Policy Management, Claims, Disruptions, Admin, LLM
    - Auto-captures `worker_id`, `policy_id`, `claim_id`, `zone_id` from responses into environment variables
    - Each request includes `pm.test()` assertions on status codes, response schema, and business logic
    - Run via Collection Runner in sequence for full happy path + simulation pipeline
 
-2. **`Hermetical.postman_environment.json`** — Pre-configured environment
+2. **`RainReady.postman_environment.json`** — Pre-configured environment
    - `base_url`: `http://localhost:8000`
    - All IDs initially empty — populated automatically by test scripts during run
    - `koramangala_zone_id`: seeded value (update after first seed run)
@@ -843,37 +834,23 @@ curl -X POST http://localhost:8000/api/disruptions/simulate \
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| README.md | ✅ STABLE | Phase 2 updated — Hermetical branding, Groq, Open-Meteo |
-| SYSTEM.md | ✅ STABLE | v2.0 — Phase 2 ready |
-| Project scaffold (server) | ⬜ NOT STARTED | |
-| Project scaffold (client) | ⬜ NOT STARTED | |
-| DB schema + migrations | ⬜ NOT STARTED | |
-| Seed data (zones, workers, 90-day activity) | ⬜ NOT STARTED | |
-| Worker registration API | ⬜ NOT STARTED | |
-| Policy management API | ⬜ NOT STARTED | |
-| Premium calculator (XGBoost) | ⬜ NOT STARTED | |
-| Open-Meteo integration | ⬜ NOT STARTED | |
-| WAQI integration | ⬜ NOT STARTED | |
-| SACHET integration | ⬜ NOT STARTED | |
-| Order proxy (T2 simulation) | ⬜ NOT STARTED | |
-| Bandh signal mock | ⬜ NOT STARTED | |
-| Trigger engine (DTPM) | ⬜ NOT STARTED | |
-| Severity scoring | ⬜ NOT STARTED | |
-| Fraud detector (rules + Isolation Forest) | ⬜ NOT STARTED | |
-| Claims service | ⬜ NOT STARTED | |
-| Payout service (Razorpay mock) | ⬜ NOT STARTED | |
-| Groq LLM service + template fallback | ⬜ NOT STARTED | |
-| APScheduler jobs | ⬜ NOT STARTED | |
-| Onboarding flow (UI) | ⬜ NOT STARTED | |
-| Worker dashboard (UI) | ⬜ NOT STARTED | |
-| Admin dashboard (UI) | ⬜ NOT STARTED | |
-| Zone trust score dashboard | ⬜ NOT STARTED | |
-| Docker compose | ⬜ NOT STARTED | |
-| Postman collection (Phase 2) | ✅ STABLE | Import from postman/ |
-| Tests — trigger engine | ⬜ NOT STARTED | |
-| Tests — premium calculator | ⬜ NOT STARTED | |
-| Tests — fraud detector | ⬜ NOT STARTED | |
-| Tests — API endpoints | ⬜ NOT STARTED | |
+| README.md | ✅ STABLE | Updated with mock-first runtime + current admin features |
+| SYSTEM.md | ✅ STABLE | Structure and status aligned with codebase |
+| Project scaffold (server/client) | ✅ STABLE | FastAPI + React PWA running via Docker |
+| DB schema + runtime sync | 🔄 IN PROGRESS | SQLAlchemy models active; Alembic workflow pending |
+| Seed data (zones + demo users) | ✅ STABLE | Zones auto-seed + deterministic U001-U008 seed |
+| Auth + RBAC | ✅ STABLE | OTP + JWT + role-based API access enforced |
+| Policy management | 🔄 IN PROGRESS | Create/pause/update stable; cancel lifecycle pending |
+| Trigger engine (DTPM + severity) | ✅ STABLE | Dual-trigger and tiering active |
+| Integrations (Open-Meteo/WAQI/SACHET/order proxy) | ✅ STABLE | Mock-aware deterministic mode implemented |
+| Fraud detector + Isolation Forest | ✅ STABLE | Rule + anomaly score integrated in claims path |
+| Claims + payout services | ✅ STABLE | Auto/manual review flow + Razorpay mock payout |
+| APScheduler jobs | ✅ STABLE | Polling + dedupe logic active |
+| Worker dashboard | ✅ STABLE | Claims, policy controls, disruptions view |
+| Admin dashboard | ✅ STABLE | Overview, claims review, workers tab, simulation, zone controls |
+| Docker compose | ✅ STABLE | Full local stack and seed targets working |
+| Postman collection (Phase 2) | ✅ STABLE | Collection and environment included |
+| Automated tests | 🔄 IN PROGRESS | Test documentation exists; full suite expansion pending |
 
 **Status key:** ✅ STABLE | 🔄 IN PROGRESS | ⚠️ BROKEN | ⬜ NOT STARTED
 
@@ -910,7 +887,7 @@ Components to build in Phase 3, on top of Phase 2:
 - Trust Tier badge + payout speed indicator
 
 ### Postman Phase 3 Collection
-Add to `postman/Hermetical_Phase3.postman_collection.json`:
+Add to `postman/RainReady_Phase3.postman_collection.json`:
 - Forecast Shield opt-in + FCM push verification
 - Solidarity Pool activation (simulate ≥30% zone workers affected)
 - Income Smoothing toggle + premium auto-cover flow

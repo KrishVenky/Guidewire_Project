@@ -14,6 +14,12 @@ class AQIData:
 
 
 async def get_current(station_id: str) -> AQIData:
+    if settings.mock_mode:
+        # Deterministic mock AQI profile for demos.
+        station_hash = sum(ord(c) for c in (station_id or "mock")) % 40
+        aqi = float(95 + station_hash)
+        return AQIData(aqi=aqi, dominant_pollutant="pm25", pm25=aqi * 0.4, pm10=aqi * 0.55)
+
     if not settings.waqi_api_token or not station_id:
         return AQIData(aqi=80.0, dominant_pollutant="pm25", pm25=45.0, pm10=60.0)
 

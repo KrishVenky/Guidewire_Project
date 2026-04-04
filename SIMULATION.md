@@ -2,6 +2,13 @@
 
 ## Quick Start
 
+### 0. Optional: seed deterministic demo users
+```bash
+make seed-demo
+```
+
+This creates the fixed U001-U008 users used in fraud and replay scenarios.
+
 ### 1. Start the backend
 ```bash
 cd Guidewire_Project
@@ -28,20 +35,34 @@ npm run dev
 | Admin | /admin dashboard   | PIN: `admin123`  |
 | Worker | Register via onboarding | Any phone number |
 
+### Fixed Test User Pack (recommended)
+
+| User | Phone | Zone | Purpose | Expected Fraud Flag |
+|------|-------|------|---------|---------------------|
+| U001 | `9000000001` | Whitefield | Clean payout baseline | None |
+| U002 | `9000000002` | Koramangala | High-income anomaly test | `INCOME_ANOMALY` |
+| U003 | `9000000003` | HSR Layout | Velocity abuse test | `VELOCITY_BREACH` |
+| U004 | `9000000004` | Indiranagar | Zone mismatch test | `GPS_ZONE_MISMATCH` |
+| U005 | `9000000005` | Whitefield | Duplicate claim replay | `DUPLICATE_CLAIM` |
+| U006 | `9000000006` | Koramangala | Trusted-tier tolerance | Usually none |
+| U007 | `9000000007` | HSR Layout | Honeypot fraud trap | `HONEYPOT_TRIGGERED` |
+| U008 | `9000000008` | Whitefield | 14-day stress test | Scenario-dependent |
+
 ---
 
 ## End-to-End Demo Flow
 
 ### Step 1 — Register a worker
 1. Open http://localhost:5173
-2. Complete 5-step onboarding:
+2. Go to **Worker Register** and complete registration:
    - Phone: any number (e.g. `9999999999`)
    - Name: any
    - Platform: ZOMATO
    - Zone: Whitefield
    - Income: ₹3500/week, 48 hrs
    - UPI: `test@upi`
-3. Policy activates automatically on completion
+3. Go to **Worker Login**, request OTP, verify OTP, and open dashboard
+4. Activate coverage from worker dashboard if policy is not active yet
 
 ### Step 2 — Fire a disruption
 1. Go to http://localhost:5173/admin → PIN: `admin123`
@@ -51,7 +72,21 @@ npm run dev
    - Event Type: `HEAVY_RAIN`
    - Raw Value: `72.5`
    - Force T2: ✅ checked
+      - Simulation Start: choose desired demo date/time
+      - Duration (days): `1` for normal, `3` for fraud replay, `14` for stress
+      - Honeypot Event: enable only for anti-spoof demo
 4. Click **Fire Disruption**
+
+### Timeline Simulation (day-by-day demo)
+
+Use the simulation controls to replay a multi-day scenario with deterministic timestamps.
+
+- Day 1: normal payout (clean)
+- Day 2: duplicate attempt (manual review)
+- Day 3: repeated claims (velocity breach)
+- Day 4: honeypot event (auto-quarantine)
+
+This is the recommended demo mode when judges ask for actuarial/fraud explainability over time.
 
 ### Step 3 — Observe the pipeline
 Watch the backend logs:
@@ -64,6 +99,15 @@ Go back to http://localhost:5173 — the claim appears with:
 - Payout amount
 - Hinglish LLM explanation
 - Event start/end time and duration
+
+### Step 5 — Inspect driver records in admin
+1. Open **Admin → Workers** tab
+2. Search by name, phone, platform, UPI, or trust tier
+3. Open a driver card to inspect:
+      - Contact and platform details
+      - Zone and trust tier
+      - KYC status
+      - Income/hours and registration timestamp
 
 ---
 
@@ -159,3 +203,4 @@ See `.env.example` for the full template. Required for full functionality:
 - `WAQI_API_TOKEN` — free at aqicn.org/api
 - `GROQ_API_KEY` — free at console.groq.com (optional, falls back to template)
 - `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` — any string works in mock mode
+- `MOCK_MODE` — set to `true` for deterministic offline demo mode (default in Docker compose)

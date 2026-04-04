@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../../store'
-import { getWorkerDashboard, submitSurvey, pausePolicy, updatePolicy, createPolicy } from '../../api'
+import { getWorkerDashboard, submitSurvey, pausePolicy, updatePolicy, createPolicy, getWorkerPolicies } from '../../api'
 
 const STATUS_COLORS = {
   AUTO_APPROVED: 'bg-green-100 text-green-700',
@@ -38,8 +38,19 @@ export default function WorkerDashboard() {
 
   const load = async () => {
     try {
-      const res = await getWorkerDashboard(workerId)
-      setData(res.data)
+      const [dashboardRes, policiesRes] = await Promise.all([
+        getWorkerDashboard(workerId),
+        getWorkerPolicies(workerId),
+      ])
+
+      const dashboardData = dashboardRes.data
+      const fallbackPolicy = (policiesRes.data || []).find((p) => p.status === 'PAUSED')
+      const policyForView = dashboardData.active_policy || fallbackPolicy || null
+
+      setData({
+        ...dashboardData,
+        active_policy: policyForView,
+      })
       setError(null)
     } catch (e) {
       if (e?.response?.status === 404) {
@@ -69,7 +80,7 @@ export default function WorkerDashboard() {
     try {
       await createPolicy(workerId)
     } catch (e) {
-      // 409 means a policy already exists (e.g. paused) — just reload to show it
+      // 409 means a policy already exists (e.g. paused) — reload and let user resume.
       if (e?.response?.status !== 409) {
         setError(e?.response?.data?.detail || 'Could not create policy')
         return

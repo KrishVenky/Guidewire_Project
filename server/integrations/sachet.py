@@ -2,6 +2,9 @@ import httpx
 import feedparser
 from dataclasses import dataclass
 from typing import List
+from config import get_settings
+
+settings = get_settings()
 
 
 @dataclass
@@ -21,6 +24,10 @@ SEVERITY_KEYWORDS = {
 
 
 async def get_active_alerts(district: str) -> List[SACHETAlert]:
+    if settings.mock_mode:
+        # Mock mode keeps official-alert channel deterministic and offline-safe.
+        return []
+
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(SACHET_RSS_URL)
