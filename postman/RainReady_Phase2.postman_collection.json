@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "rainready-phase2-v1",
-    "name": "RainReady — Phase 2",
-    "description": "Full API test suite for RainReady Phase 2 (Automation & Protection).\n\nRun via Collection Runner in sequence. The Simulate Disruption request triggers the complete DTPM pipeline: disruption event → claim auto-generation → fraud check → Razorpay mock payout → LLM Hinglish explanation.\n\nEnvironment variables are auto-captured from responses — import RainReady.postman_environment.json and select it before running.",
+    "name": "Hermetical — Phase 2",
+    "description": "Full API test suite for Hermetical Phase 2 (Automation & Protection).\n\nRun via Collection Runner in sequence. The Simulate Disruption request triggers the complete DTPM pipeline: disruption event → claim auto-generation → fraud check → Razorpay mock payout → LLM Hinglish explanation.\n\nEnvironment variables are auto-captured from responses — import Hermetical.postman_environment.json and select it before running.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [

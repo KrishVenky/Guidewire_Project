@@ -33,6 +33,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"[Startup] ML training skipped: {e}")
 
+    logger.info("[Startup] Seeding demo users...")
+    try:
+        from seeds.demo_users import run as seed_demo_users
+        seed_demo_users()
+    except Exception as e:
+        logger.warning(f"[Startup] Demo user seeding skipped: {e}")
+
     logger.info("[Startup] Starting APScheduler...")
     from jobs.scheduler import start_scheduler
     start_scheduler()
@@ -46,7 +53,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="RainReady API",
+    title="Hermetical API",
     description="Dual-trigger parametric income insurance for delivery workers",
     version="2.0.0",
     lifespan=lifespan,

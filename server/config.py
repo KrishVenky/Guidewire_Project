@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     admin_pin: str = "admin123"
     auth_debug_return_otp: bool = True
     debug: bool = True
+    mock_mode: bool = True
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
     class Config:

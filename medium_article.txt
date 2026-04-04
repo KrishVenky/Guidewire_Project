@@ -1,8 +1,8 @@
-RainReady — Building Insurance That Pays You Before You Even File a Claim
+Hermetical — Building Insurance That Pays You Before You Even File a Claim
 
 Phase 2 of Guidewire DEVTrails 2026. We started with six weeks, ₹1,00,000 in seed capital, and a problem that actually matters. We now have a working product. This is the updated story.
 
-(Quick note: we were GigShield in Phase 1. We're RainReady now. Name change, same mission. Moving on.)
+(Quick note: we were GigShield in Phase 1. We're Hermetical now. Name change, same mission. Moving on.)
 
 * * *
 
@@ -16,7 +16,7 @@ It clicked immediately. This isn't a contrived hackathon scenario. This is a rea
 
 Picture this: it's monsoon season. A Zomato rider is sitting at home. It's raining at 60mm/hr. Visibility is terrible. The app stops assigning orders. He watches ₹600 disappear—maybe more if it continues. No insurance covers this. The platform covers liability during rides. The government covers accidents. Nobody covers the actual money problem—an entire day's wages, gone to a rainstorm he had absolutely no control over.
 
-That's where RainReady started. In a room, figuring out what this problem actually looks like.
+That's where Hermetical started. In a room, figuring out what this problem actually looks like.
 
 * * *
 
@@ -136,4 +136,4 @@ fastapi • python • supabase • postgresql • react • tailwindcss • sci
 
 * * *
 
-RainReady is not affiliated with Zomato, Swiggy, Blinkit, or Razorpay. All worker data is simulated for hackathon purposes. Built for Guidewire DEVTrails 2026.
+Hermetical is not affiliated with Zomato, Swiggy, Blinkit, or Razorpay. All worker data is simulated for hackathon purposes. Built for Guidewire DEVTrails 2026.

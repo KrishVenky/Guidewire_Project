@@ -28,7 +28,7 @@ CLAIM_TEMPLATES = {
     ),
     "PAID": (
         "₹{amount} tera UPI {upi} mein aa gaya. "
-        "RainReady hamesha tera saath hai. 💪"
+        "Hermetical hamesha tera saath hai. 💪"
     ),
 }
 
@@ -78,7 +78,7 @@ async def generate_claim_explanation(
             model=settings.groq_model,
             messages=[
                 {"role": "system", "content": (
-                    "Tum RainReady ke assistant ho. Delivery workers ko "
+                    "Tum Hermetical ke assistant ho. Delivery workers ko "
                     "simple Hinglish mein insurance decisions explain karo. "
                     "Financial decisions mat karo — sirf samjhao."
                 )},
@@ -100,7 +100,7 @@ async def onboarding_chat(
 ) -> tuple[str, bool]:
     """Returns (response_text, used_fallback)"""
     fallback = (
-        "RainReady aapko baarish, garmi, aur bandh jaise disruptions mein "
+        "Hermetical aapko baarish, garmi, aur bandh jaise disruptions mein "
         "income protect karta hai. Weekly ₹35–70 premium mein UPI payout automatic aata hai. "
         "Koi aur sawaal?"
     )
@@ -114,8 +114,8 @@ async def onboarding_chat(
 
         messages = [
             {"role": "system", "content": (
-                "Tum RainReady ke onboarding assistant ho delivery workers ke liye. "
-                "Sirf RainReady insurance ke baare mein jawab do — Hinglish mein, "
+                "Tum Hermetical ke onboarding assistant ho delivery workers ke liye. "
+                "Sirf Hermetical insurance ke baare mein jawab do — Hinglish mein, "
                 "80 words se kam. Kisi aur topic pe redirect karo politely. "
                 f"Worker context: zone={worker_context.get('zone', 'Bengaluru')}, "
                 f"platform={worker_context.get('platform', 'Zomato')}."

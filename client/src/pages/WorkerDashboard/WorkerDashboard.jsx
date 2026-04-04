@@ -109,7 +109,7 @@ export default function WorkerDashboard() {
       {/* Navbar */}
       <nav className="bg-blue-900 text-white px-6 py-4 flex justify-between items-center">
         <div>
-          <span className="text-xl font-bold">RainReady</span>
+          <span className="text-xl font-bold">Hermetical</span>
           <span className="ml-3 text-blue-300 text-sm">{displayWorker?.trust_tier?.replace(/_/g, ' ')}</span>
         </div>
         <div className="flex items-center gap-4">
