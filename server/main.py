@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="RainReady API",
+    title="Hermetical API",
     description="Dual-trigger parametric income insurance for delivery workers",
     version="2.0.0",
     lifespan=lifespan,

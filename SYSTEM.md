@@ -1,4 +1,4 @@
-# SYSTEM.md — RainReady Internal System Brain
+# SYSTEM.md — Hermetical Internal System Brain
 
 > **FOR:** Developers, coding agents, LLMs working on this codebase
 > **PURPOSE:** Complete implementation reference. Every component, endpoint, data model, directory, integration, and test status documented here. Read this before touching any file.
@@ -173,8 +173,8 @@ rainready/
 │   └── Dockerfile
 │
 ├── postman/                          # API test suite
-│   ├── RainReady_Phase2.postman_collection.json   # Full Phase 2 endpoint coverage
-│   └── RainReady.postman_environment.json         # Environment (base_url, auto-captured IDs)
+│   ├── Hermetical_Phase2.postman_collection.json   # Full Phase 2 endpoint coverage
+│   └── Hermetical.postman_environment.json         # Environment (base_url, auto-captured IDs)
 │
 └── scripts/
     └── seed_historical_data.py       # Standalone seeder (can run outside Docker)
@@ -501,7 +501,7 @@ Called after a claim is created. Returns a Hinglish explanation of:
 
 **System prompt template:**
 ```
-You are RainReady's assistant. Explain the following insurance claim decision
+You are Hermetical's assistant. Explain the following insurance claim decision
 to a delivery worker in simple Hindi-English mix (Hinglish).
 Be warm, clear, and under 100 words. Do not use technical terms.
 Never suggest the decision could be wrong.
@@ -520,11 +520,11 @@ Handles conversational onboarding. Answers questions about coverage, premium, pa
 
 **System prompt template:**
 ```
-You are RainReady's onboarding assistant for delivery workers.
-Answer only questions about RainReady insurance.
+You are Hermetical's onboarding assistant for delivery workers.
+Answer only questions about Hermetical insurance.
 Speak in simple Hinglish. Be brief (under 80 words per reply).
 Worker context: {worker_context}
-If asked anything not related to RainReady, politely redirect.
+If asked anything not related to Hermetical, politely redirect.
 ```
 
 ### What the LLM Must NEVER Do
@@ -800,13 +800,13 @@ pytest tests/ -v
 ### Postman API Test Suite
 Located in `postman/`. Import both files into Postman:
 
-1. **`RainReady_Phase2.postman_collection.json`** — Full Phase 2 endpoint coverage
+1. **`Hermetical_Phase2.postman_collection.json`** — Full Phase 2 endpoint coverage
    - Organized into folders: Health, Worker Registration, Policy Management, Claims, Disruptions, Admin, LLM
    - Auto-captures `worker_id`, `policy_id`, `claim_id`, `zone_id` from responses into environment variables
    - Each request includes `pm.test()` assertions on status codes, response schema, and business logic
    - Run via Collection Runner in sequence for full happy path + simulation pipeline
 
-2. **`RainReady.postman_environment.json`** — Pre-configured environment
+2. **`Hermetical.postman_environment.json`** — Pre-configured environment
    - `base_url`: `http://localhost:8000`
    - All IDs initially empty — populated automatically by test scripts during run
    - `koramangala_zone_id`: seeded value (update after first seed run)
@@ -843,7 +843,7 @@ curl -X POST http://localhost:8000/api/disruptions/simulate \
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| README.md | ✅ STABLE | Phase 2 updated — RainReady branding, Groq, Open-Meteo |
+| README.md | ✅ STABLE | Phase 2 updated — Hermetical branding, Groq, Open-Meteo |
 | SYSTEM.md | ✅ STABLE | v2.0 — Phase 2 ready |
 | Project scaffold (server) | ⬜ NOT STARTED | |
 | Project scaffold (client) | ⬜ NOT STARTED | |
@@ -910,7 +910,7 @@ Components to build in Phase 3, on top of Phase 2:
 - Trust Tier badge + payout speed indicator
 
 ### Postman Phase 3 Collection
-Add to `postman/RainReady_Phase3.postman_collection.json`:
+Add to `postman/Hermetical_Phase3.postman_collection.json`:
 - Forecast Shield opt-in + FCM push verification
 - Solidarity Pool activation (simulate ≥30% zone workers affected)
 - Income Smoothing toggle + premium auto-cover flow

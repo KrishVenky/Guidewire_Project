@@ -109,7 +109,7 @@ export default function Onboarding() {
       <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-blue-900">RainReady</h1>
+            <h1 className="text-3xl font-bold text-blue-900">Hermetical</h1>
             <p className="text-gray-500 text-sm mt-1">Income insurance for delivery partners</p>
           </div>
 
@@ -161,7 +161,7 @@ export default function Onboarding() {
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-blue-900">RainReady</h1>
+          <h1 className="text-3xl font-bold text-blue-900">Hermetical</h1>
           <p className="text-gray-500 text-sm mt-1">New account — {phone}</p>
         </div>
 
@@ -305,7 +305,7 @@ export default function Onboarding() {
               <div className="text-6xl">🎉</div>
               <h2 className="text-2xl font-bold text-green-600">You're covered!</h2>
               <p className="text-gray-600">
-                RainReady is watching your zone. When baarish, garmi, ya bandh hits —
+                Hermetical is watching your zone. When baarish, garmi, ya bandh hits —
                 payout automatically tera UPI mein aayega.
               </p>
               <div className="bg-green-50 rounded-lg p-4 text-sm text-green-800">

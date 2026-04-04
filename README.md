@@ -1,4 +1,4 @@
-# RainReady - AI-Powered Parametric Income Insurance for India's Delivery Workers
+# Hermetical - AI-Powered Parametric Income Insurance for India's Delivery Workers
 
 > Guidewire DEVTrails 2026 | Unicorn Chase
 > Protecting the income of Zomato, Swiggy & Blinkit delivery partners against uncontrollable external disruptions.
@@ -11,19 +11,19 @@ India's food and grocery delivery workers — the people behind every Zomato ord
 
 Existing insurance products don't help. Government schemes cover accidents and health. Platforms cover liability during active rides. Nobody covers **lost income from external disruptions** — the single biggest financial risk a delivery worker actually faces week to week.
 
-**RainReady fixes this.**
+**Hermetical fixes this.**
 
 ---
 
 ## The Solution
 
-RainReady is a **dual-trigger parametric income insurance platform** built specifically for Zomato, Swiggy, and Blinkit delivery partners. Workers pay a small weekly premium. When a verified external disruption hits their zone, coverage activates automatically. No claim forms. No waiting. Payout lands in their UPI within minutes.
+Hermetical is a **dual-trigger parametric income insurance platform** built specifically for Zomato, Swiggy, and Blinkit delivery partners. Workers pay a small weekly premium. When a verified external disruption hits their zone, coverage activates automatically. No claim forms. No waiting. Payout lands in their UPI within minutes.
 
 ### What Makes This Different
 
 Most parametric systems use a single trigger — "it rained, here's money." The problem is **basis risk**: it rained in one part of the city but your zone was fine, or the platform was still running deliveries. A single weather reading is not proof of income loss.
 
-RainReady uses a **Dual-Trigger Parametric Model (DTPM)**:
+Hermetical uses a **Dual-Trigger Parametric Model (DTPM)**:
 
 ![Dual Trigger Model](docs/assets/gigshield_dual_trigger_model.png)
 
@@ -92,7 +92,7 @@ Premium is deducted from the worker's linked UPI every Monday morning via Razorp
 
 ### Payout Precision via Earnings Velocity Profiling
 
-Rather than a flat payout amount, RainReady models each worker's hourly earning rate across time of day, day of week, zone, and season. When a disruption fires, the payout reflects the **actual estimated income lost** during that window — not a generic flat amount. A worker who earns ₹800/day receives proportionally more coverage than one earning ₹400/day.
+Rather than a flat payout amount, Hermetical models each worker's hourly earning rate across time of day, day of week, zone, and season. When a disruption fires, the payout reflects the **actual estimated income lost** during that window — not a generic flat amount. A worker who earns ₹800/day receives proportionally more coverage than one earning ₹400/day.
 
 ### Disruption Severity Scoring
 
@@ -115,7 +115,7 @@ This reduces insurer loss ratio, prevents gaming edge-case thresholds, and produ
 
 ### Forecast Shield (Predictive Coverage Upgrade)
 
-When Open-Meteo's 6-hour forecast predicts >70% probability of threshold breach, RainReady sends the worker a proactive Hinglish alert: "Kal Whitefield mein baarish ka alert hai — aaj coverage upgrade karo ₹8 mein?" Workers can opt into an enhanced coverage tier before the event.
+When Open-Meteo's 6-hour forecast predicts >70% probability of threshold breach, Hermetical sends the worker a proactive Hinglish alert: "Kal Whitefield mein baarish ka alert hai — aaj coverage upgrade karo ₹8 mein?" Workers can opt into an enhanced coverage tier before the event.
 
 ### Solidarity Pool for Social Disruptions
 
@@ -133,7 +133,7 @@ Workers build a trust tier over time — Trusted Partner, Rising Partner, New Pa
 
 ### Income Smoothing (Phase 3)
 
-Opt-in micro-savings layer. In high-earning weeks, the platform retains a small voluntary buffer (₹50–100 with worker consent). When a low-earning week or uncovered disruption occurs, RainReady draws from this buffer to cover the worker's next premium automatically.
+Opt-in micro-savings layer. In high-earning weeks, the platform retains a small voluntary buffer (₹50–100 with worker consent). When a low-earning week or uncovered disruption occurs, Hermetical draws from this buffer to cover the worker's next premium automatically.
 
 ---
 
@@ -153,13 +153,13 @@ Opt-in micro-savings layer. In high-earning weeks, the platform retains a small 
 
 ## Adversarial Defense & Anti-Spoofing Strategy
 
-### The T2 Manufacturing Attack (RainReady-specific)
+### The T2 Manufacturing Attack (Hermetical-specific)
 
 Our payout requires both T1 (weather signal) and T2 (zone order drop) to fire simultaneously. A GPS spoof alone doesn't work because T2 watches platform order activity, not worker location. A smart fraud ring would coordinate workers to go offline simultaneously, manufacturing the T2 signal. Defense: compare order drop *shape* against historical signatures. Real disruptions show a gradual curve. Coordinated attacks show a cliff edge — simultaneous drop, simultaneous recovery. The cliff pattern doesn't exist in 90-day baseline data.
 
 ### The Parametric Honeypot
 
-RainReady publishes fake disruption alerts internally to zones with no real disruption. These alerts never trigger real payouts — they exist only inside the system. Any account claiming on a fake alert is definitionally spoofing. No genuine worker would claim on an event they didn't experience.
+Hermetical publishes fake disruption alerts internally to zones with no real disruption. These alerts never trigger real payouts — they exist only inside the system. Any account claiming on a fake alert is definitionally spoofing. No genuine worker would claim on an event they didn't experience.
 
 ### Standard Defenses
 
@@ -234,8 +234,8 @@ A mock JSON endpoint controlled via the admin dashboard simulates bandh/curfew s
 
 A Postman collection and environment file are provided under `postman/` for all Phase 2 endpoints:
 
-- `postman/RainReady_Phase2.postman_collection.json` — Full test suite covering registration, policy management, premium calculation, disruption simulation, claims pipeline, and admin endpoints. Each request includes test assertions on status codes, response schema, and business logic.
-- `postman/RainReady.postman_environment.json` — Pre-configured environment with `base_url` and auto-captured variables (worker_id, policy_id, claim_id) set by Collection Runner test scripts.
+- `postman/Hermetical_Phase2.postman_collection.json` — Full test suite covering registration, policy management, premium calculation, disruption simulation, claims pipeline, and admin endpoints. Each request includes test assertions on status codes, response schema, and business logic.
+- `postman/Hermetical.postman_environment.json` — Pre-configured environment with `base_url` and auto-captured variables (worker_id, policy_id, claim_id) set by Collection Runner test scripts.
 
 Run the entire collection in sequence via Collection Runner to walk through the full happy path. The disruption simulation request triggers the complete DTPM pipeline end-to-end.
 
@@ -256,8 +256,8 @@ rainready/
 │   ├── llm/                       # Groq integration + fallback templates
 │   └── jobs/                      # APScheduler polling jobs
 ├── postman/
-│   ├── RainReady_Phase2.postman_collection.json
-│   └── RainReady.postman_environment.json
+│   ├── Hermetical_Phase2.postman_collection.json
+│   └── Hermetical.postman_environment.json
 ├── scripts/
 │   └── seed_historical_data.py    # Faker + pandas — 90-day zone baseline seeder
 ├── docker-compose.yml             # One-command local setup
@@ -310,7 +310,7 @@ rainready/
 
 ## What We Are Not Building
 
-RainReady strictly excludes the following per the problem statement constraints:
+Hermetical strictly excludes the following per the problem statement constraints:
 
 - Health insurance or accident medical bills
 - Vehicle repair or maintenance coverage
@@ -333,7 +333,7 @@ Each worker's policy enforces a **maximum consecutive trigger cap** of 4 weeks. 
 
 ### Truly Systemic Events — COVID-Scale Disruptions
 
-RainReady is designed for recoverable, zone-level disruptions. For economy-wide indefinite disruptions: proportional drawdown from the Solidarity Pool applies first; if reserves fall below the floor, new auto-payouts suspend and the reserve is held for manual disbursement. This boundary is intentional — good insurance design means knowing what you're not covering.
+Hermetical is designed for recoverable, zone-level disruptions. For economy-wide indefinite disruptions: proportional drawdown from the Solidarity Pool applies first; if reserves fall below the floor, new auto-payouts suspend and the reserve is held for manual disbursement. This boundary is intentional — good insurance design means knowing what you're not covering.
 
 ---
 
@@ -344,4 +344,4 @@ Guidewire DEVTrails 2026 | Built with FastAPI · React Native · Supabase · Gro
 
 ---
 
-*RainReady is not affiliated with Zomato, Swiggy, Blinkit, or Razorpay. All worker data is simulated for hackathon purposes.*
+*Hermetical is not affiliated with Zomato, Swiggy, Blinkit, or Razorpay. All worker data is simulated for hackathon purposes.*

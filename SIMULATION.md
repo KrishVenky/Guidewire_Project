@@ -1,4 +1,4 @@
-# RainReady — Simulation & Demo Guide
+# Hermetical — Simulation & Demo Guide
 
 ## Quick Start
 
