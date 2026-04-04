@@ -10,6 +10,7 @@ class SimulateDisruptionRequest(BaseModel):
     event_type: EventType
     raw_value: float
     force_t2: bool = False
+    is_honeypot: bool = False
 
 
 class BandhToggleRequest(BaseModel):

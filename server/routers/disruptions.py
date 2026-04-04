@@ -90,6 +90,7 @@ async def simulate_disruption(body: SimulateDisruptionRequest, db: Session = Dep
         t2_confirmed=t2_confirmed,
         dual_trigger_fired=dual_trigger,
         payout_tier=tier,
+        is_honeypot=body.is_honeypot,
     )
     db.add(event)
     db.commit()
