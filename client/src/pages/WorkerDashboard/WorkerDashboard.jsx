@@ -182,13 +182,31 @@ export default function WorkerDashboard() {
             {recent_claims?.map(claim => (
               <div key={claim.id} className="border border-gray-100 rounded-lg p-3">
                 <div className="flex justify-between items-start">
-                  <div>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[claim.status] || ''}`}>
-                      {claim.status.replace('_', ' ')}
-                    </span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[claim.status] || ''}`}>
+                        {claim.status.replace('_', ' ')}
+                      </span>
+                      {claim.duration_hours > 0 && (
+                        <span className="text-xs text-gray-400">{claim.duration_hours.toFixed(1)}h disruption</span>
+                      )}
+                    </div>
                     <p className="text-gray-700 mt-1 text-sm">{claim.llm_explanation}</p>
+                    <div className="text-xs text-gray-400 mt-1 space-y-0.5">
+                      <p>{new Date(claim.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                      {claim.event_started_at && (
+                        <p>Event: {new Date(claim.event_started_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                          {claim.event_ended_at ? ` → ${new Date(claim.event_ended_at).toLocaleString('en-IN', { timeStyle: 'short' })}` : ' (ongoing)'}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <span className="font-bold text-blue-700 ml-2">₹{claim.payout_amount?.toFixed(0)}</span>
+                  <div className="text-right ml-3">
+                    <span className="font-bold text-blue-700 text-lg">₹{claim.payout_amount?.toFixed(0)}</span>
+                    {active_policy && (
+                      <p className="text-xs text-gray-400">of ₹{active_policy.coverage_amount?.toFixed(0)} max</p>
+                    )}
+                  </div>
                 </div>
                 {claim.status === 'PAID' && !claim.trust_survey_response && (
                   <button

@@ -31,6 +31,8 @@ export default function Onboarding() {
 
   const [workerId, setWorkerId] = useState(null)
   const [premium, setPremium] = useState(null)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
 
   useEffect(() => {
     getZones().then((r) => setZones(r.data)).catch(() => {})
@@ -86,6 +88,8 @@ export default function Onboarding() {
         setPremium(pRes.data)
         setStep(2)
       } else if (step === 2) {
+        // Validate consent
+        if (!termsAccepted || !privacyAccepted) throw new Error('Please accept the terms and privacy policy to continue')
         // Activate policy
         await createPolicy(workerId)
         setStep(3)
@@ -268,6 +272,30 @@ export default function Onboarding() {
               <p className="text-sm text-gray-500 text-center">
                 Payout lands in your UPI automatically. No forms, no waiting.
               </p>
+              <div className="space-y-3 pt-2">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-blue-600"
+                  />
+                  <span className="text-sm text-gray-600">
+                    I agree to the <span className="text-blue-600 underline">Terms of Service</span> — I understand payouts are triggered only by verified external disruptions, not personal circumstances.
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={privacyAccepted}
+                    onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-blue-600"
+                  />
+                  <span className="text-sm text-gray-600">
+                    I agree to the <span className="text-blue-600 underline">Privacy Policy</span> — my location zone and income data will be used only to calculate premiums and validate claims.
+                  </span>
+                </label>
+              </div>
             </>
           )}
 

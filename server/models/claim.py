@@ -36,10 +36,13 @@ class Claim(Base):
     event_ended_at = Column(DateTime(timezone=True), nullable=True)
     duration_hours = Column(Float, default=0.0)
 
+    filed_at = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
     llm_explanation = Column(String, default="")
     trust_survey_response = Column(JSON, nullable=True)
+    decision_reason_code = Column(String, nullable=True)  # e.g. FRAUD_SCORE_HIGH, DUPLICATE, HONEYPOT, AUTO_CLEAN
+    worker_zone_at_event_start = Column(UUID(as_uuid=True), nullable=True)  # snapshot of zone at event time
 
     worker = relationship("Worker", back_populates="claims")
     policy = relationship("Policy", back_populates="claims")

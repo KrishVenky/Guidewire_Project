@@ -71,3 +71,11 @@ def simulate_weather_drop(zone_id: str, intensity: float) -> float:
     weather_factor = max(0.0, 1.0 - intensity)
     noise = random.uniform(0.85, 1.0)
     return baseline * weather_factor * noise
+
+
+def reset_zone_state(zone_id: str):
+    """Reset simulated order drop and bandh flags back to baseline after event ends."""
+    zid = str(zone_id)
+    _bandh_active[zid] = False
+    if zid in _zone_baselines:
+        _zone_current_rates[zid] = _zone_baselines[zid]

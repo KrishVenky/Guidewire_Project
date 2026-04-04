@@ -83,6 +83,8 @@ def create_policy(body: PolicyCreate, db: Session = Depends(get_db)):
         aqi_risk_score=zone.aqi_risk_score,
     )
 
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     today = date.today()
     policy = Policy(
         worker_id=worker.id,
@@ -92,6 +94,9 @@ def create_policy(body: PolicyCreate, db: Session = Depends(get_db)):
         start_date=today,
         current_week_start=today,
         premium_paid_this_week=False,
+        activation_source="DASHBOARD",
+        terms_accepted_at=now,
+        privacy_accepted_at=now,
     )
     db.add(policy)
     db.commit()

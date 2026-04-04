@@ -32,9 +32,12 @@ class ClaimResponse(BaseModel):
     event_ended_at: Optional[datetime] = None
     duration_hours: float = 0.0
     llm_explanation: str
+    filed_at: Optional[datetime] = None
     created_at: datetime
     reviewed_at: Optional[datetime] = None
     trust_survey_response: Optional[dict] = None
+    decision_reason_code: Optional[str] = None
+    worker_zone_at_event_start: Optional[UUID] = None
 
     class Config:
         from_attributes = True

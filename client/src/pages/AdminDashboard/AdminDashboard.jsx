@@ -199,6 +199,11 @@ export default function AdminDashboard() {
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="text-sm font-medium text-gray-700">Claim {c.id.slice(0, 8)}…</p>
+                        {c.decision_reason_code && (
+                          <p className="text-xs font-semibold text-orange-700 mt-0.5">
+                            Reason: {c.decision_reason_code.replace(/_/g, ' ')}
+                          </p>
+                        )}
                         <p className="text-sm text-gray-500">Fraud score: <span className="font-medium text-red-600">{c.fraud_score.toFixed(2)}</span></p>
                         <div className="flex gap-1 flex-wrap mt-1">
                           {(c.fraud_flags || []).map(f => (

@@ -13,7 +13,7 @@ from schemas.disruption import (
 )
 from services.trigger_engine import compute_severity, severity_to_tier
 from services.claims_service import process_disruption_event
-from integrations.order_proxy import set_bandh, simulate_weather_drop, compute_drop_pct
+from integrations.order_proxy import set_bandh, simulate_weather_drop, compute_drop_pct, reset_zone_state
 
 router = APIRouter(prefix="/api/disruptions", tags=["disruptions"])
 
@@ -103,6 +103,9 @@ async def simulate_disruption(body: SimulateDisruptionRequest, db: Session = Dep
         summary = await process_disruption_event(event, db)
         claims_created = summary["claims_created"]
         skipped = summary["skipped_workers"]
+
+    # Reset simulated T2 state so order rates return to baseline
+    reset_zone_state(str(zone.id))
 
     return SimulationResult(
         disruption_event_id=event.id,

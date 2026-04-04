@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, Float, Integer, Boolean, Date, DateTime, Enum as SAEnum, ForeignKey
+from sqlalchemy import Column, String, Float, Integer, Boolean, Date, DateTime, Enum as SAEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -30,6 +30,10 @@ class Policy(Base):
     premium_paid_this_week = Column(Boolean, default=False)
     total_premiums_paid = Column(Float, default=0.0)
     total_payouts_received = Column(Float, default=0.0)
+
+    terms_accepted_at = Column(DateTime(timezone=True), nullable=True)
+    privacy_accepted_at = Column(DateTime(timezone=True), nullable=True)
+    activation_source = Column(String, default="DASHBOARD")  # must always be DASHBOARD
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -42,6 +42,16 @@ async def process_disruption_event(
     if workers_in_zone:
         zone_avg_income = sum(w.avg_weekly_income for w in workers_in_zone) / len(workers_in_zone)
 
+    # Filing window: skip if event ended more than 6 hours ago
+    from datetime import timezone as tz
+    if event.ended_at:
+        event_end_utc = event.ended_at
+        if event_end_utc.tzinfo is None:
+            event_end_utc = event_end_utc.replace(tzinfo=tz.utc)
+        hours_since_end = (datetime.utcnow().replace(tzinfo=tz.utc) - event_end_utc).total_seconds() / 3600
+        if hours_since_end > 6:
+            return {"claims_created": 0, "skipped_workers": len(workers_in_zone), "skip_reason": "FILING_WINDOW_EXPIRED"}
+
     for worker in workers_in_zone:
         active_policy = (
             db.query(Policy)
@@ -97,6 +107,12 @@ async def process_disruption_event(
 
         status = ClaimStatus.MANUAL_REVIEW if fraud_result.flagged else ClaimStatus.AUTO_APPROVED
 
+        # Decision reason code
+        if fraud_result.flagged and fraud_result.flags:
+            reason_code = fraud_result.flags[0]
+        else:
+            reason_code = "AUTO_CLEAN"
+
         claim = Claim(
             worker_id=worker.id,
             policy_id=active_policy.id,
@@ -113,6 +129,8 @@ async def process_disruption_event(
             fraud_score=fraud_result.score,
             fraud_flags=fraud_result.flags,
             auto_initiated=True,
+            decision_reason_code=reason_code,
+            worker_zone_at_event_start=worker.zone_id,
         )
         db.add(claim)
         db.flush()
