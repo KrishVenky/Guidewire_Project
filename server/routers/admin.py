@@ -63,7 +63,8 @@ def pending_claims(db: Session = Depends(get_db)):
             "status": c.status.value,
             "payout_amount": c.payout_amount,
             "fraud_score": c.fraud_score,
-            "fraud_flags": c.fraud_flags,
+            "fraud_flags": c.fraud_flags or [],
+            "decision_reason_code": c.decision_reason_code,
             "created_at": c.created_at.isoformat(),
         }
         for c in claims
