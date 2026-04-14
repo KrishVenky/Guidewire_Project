@@ -1,13 +1,16 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-// TODO: Update this URL after deploying your backend
-// For local testing: use your computer's IP (not localhost)
-// Example: http://192.168.1.100:8000
-const API_BASE_URL = 'http://192.168.1.100:8000';
+const fallbackBaseUrl =
+  Platform.OS === 'web'
+    ? 'http://127.0.0.1:8000'
+    : Platform.OS === 'android'
+      ? 'http://10.0.2.2:8000'
+      : 'http://127.0.0.1:8000';
 
-// For deployed backend (update after deployment):
-// const API_BASE_URL = 'https://your-app.railway.app';
+// Set EXPO_PUBLIC_API_BASE_URL for physical devices or deployed backends.
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || fallbackBaseUrl;
 
 const api = axios.create({
   baseURL: API_BASE_URL,

@@ -50,30 +50,45 @@ Then:
 
 ### For Local Backend
 
-1. Find your computer's IP address:
+1. For web testing, no change is needed. The app defaults to:
+   ```bash
+   http://127.0.0.1:8000
+   ```
+
+2. For a physical Android device, find your computer's IP address:
    ```bash
    ipconfig
    ```
    Look for IPv4 Address (e.g., `192.168.1.100`)
 
-2. Edit `src/api/config.ts`:
-   ```typescript
-   const API_BASE_URL = 'http://192.168.1.100:8000';
+3. Start Expo with an environment variable:
+   ```bash
+   set EXPO_PUBLIC_API_BASE_URL=http://192.168.1.100:8000
+   npm start
    ```
 
-3. Make sure backend is running:
+4. Make sure backend is running. Use one of these:
+   ```bash
+   cd F:\Projects\Guidewire_Project
+   docker-compose up -d postgres server
+   ```
+
+   Or, if you already have Postgres and Redis running locally:
    ```bash
    cd F:\Projects\Guidewire_Project
    uvicorn server.main:app --reload --port 8000
    ```
 
+   If you use Docker, start Docker Desktop first.
+
 ### For Deployed Backend (Railway/Render)
 
 1. Deploy your backend first (see Deployment section below)
 
-2. Edit `src/api/config.ts`:
-   ```typescript
-   const API_BASE_URL = 'https://your-app.railway.app';
+2. Start Expo with your deployed API URL:
+   ```bash
+   set EXPO_PUBLIC_API_BASE_URL=https://your-app.railway.app
+   npm start
    ```
 
 ---
@@ -81,7 +96,11 @@ Then:
 ## Test Credentials
 
 ### Worker
-- **Phone**: Any 10-digit number (e.g., `9876543210`)
+- **Phone**: Use a seeded demo worker
+- `9000000001`
+- `9000000002`
+- `9000000003`
+- `9000000004`
 - **OTP**: `123456` (demo mode)
 
 ### Admin

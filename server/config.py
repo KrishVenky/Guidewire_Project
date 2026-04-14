@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     auth_debug_return_otp: bool = True
     debug: bool = True
     mock_mode: bool = True
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:5173,http://localhost:3000,http://localhost:8081,http://127.0.0.1:8081"
 
     class Config:
         env_file = "../.env"

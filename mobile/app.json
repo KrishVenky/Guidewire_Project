@@ -36,11 +36,6 @@
     "plugins": [
       "expo-location",
       "expo-secure-store"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "your-project-id-here"
-      }
-    }
+    ]
   }
 }
