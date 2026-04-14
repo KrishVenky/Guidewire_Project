@@ -16,7 +16,7 @@ export const useStore = create(
       logout: () => set({ workerId: null, workerData: null, workerToken: null, isAdmin: false, adminToken: null }),
     }),
     {
-      name: 'rainready-store',
+      name: 'hermetical-store',
       partialize: (state) => ({
         workerId: state.workerId,
         workerData: state.workerData,

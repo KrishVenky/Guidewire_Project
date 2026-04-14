@@ -1,4 +1,4 @@
-# SYSTEM.md — RainReady Internal System Brain
+# SYSTEM.md — Hermetical Internal System Brain
 
 > **FOR:** Developers, coding agents, LLMs working on this codebase
 > **PURPOSE:** Complete implementation reference. Every component, endpoint, data model, directory, integration, and test status documented here. Read this before touching any file.
@@ -485,7 +485,7 @@ Called after a claim is created. Returns a Hinglish explanation of:
 
 **System prompt template:**
 ```
-You are RainReady's assistant. Explain the following insurance claim decision
+You are Hermetical's assistant. Explain the following insurance claim decision
 to a delivery worker in simple Hindi-English mix (Hinglish).
 Be warm, clear, and under 100 words. Do not use technical terms.
 Never suggest the decision could be wrong.
@@ -504,11 +504,11 @@ Handles conversational onboarding. Answers questions about coverage, premium, pa
 
 **System prompt template:**
 ```
-You are RainReady's onboarding assistant for delivery workers.
-Answer only questions about RainReady insurance.
+You are Hermetical's onboarding assistant for delivery workers.
+Answer only questions about Hermetical insurance.
 Speak in simple Hinglish. Be brief (under 80 words per reply).
 Worker context: {worker_context}
-If asked anything not related to RainReady, politely redirect.
+If asked anything not related to Hermetical, politely redirect.
 ```
 
 ### What the LLM Must NEVER Do

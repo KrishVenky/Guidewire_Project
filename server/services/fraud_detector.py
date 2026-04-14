@@ -31,6 +31,9 @@ def evaluate(
     is_honeypot: bool,
     isolation_forest_score: float = 0.0,
     worker_trust_tier: str = "NEW_PARTNER",
+    weather_inconsistency: bool = False,
+    gps_impossible_jump: bool = False,
+    event_source_untrusted: bool = False,
 ) -> FraudResult:
     score = 0.0
     flags: List[str] = []
@@ -71,6 +74,20 @@ def evaluate(
     if isolation_forest_score > 0.8:
         score += 0.3
         flags.append("ISOLATION_FOREST_ANOMALY")
+
+    # Claimed weather intensity is inconsistent with external archive history.
+    if weather_inconsistency:
+        score += 0.45
+        flags.append("HISTORICAL_WEATHER_MISMATCH")
+
+    # Placeholder hook for future GPS trace ingestion (mobile SDK).
+    if gps_impossible_jump:
+        score += 0.45
+        flags.append("GPS_SPOOF_SUSPECTED")
+
+    if event_source_untrusted:
+        score += 0.3
+        flags.append("UNTRUSTED_EVENT_SOURCE")
 
     # Trusted partners get higher tolerance
     if worker_trust_tier == "TRUSTED_PARTNER":

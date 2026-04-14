@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../../store'
 import {
   getAdminDashboard, getPendingClaims, getFinancialSummary,
-  getZoneTrustScores, getZones, getTriggerSources, simulateDisruption, toggleBandh, reviewClaim, adminLogin, getAllWorkers
+  getZoneTrustScores, getZones, getTriggerSources, getPredictiveClaims, simulateDisruption, toggleBandh, reviewClaim, adminLogin, getAllWorkers
 } from '../../api'
 
 const EVENT_TYPES = ['HEAVY_RAIN', 'EXTREME_HEAT', 'HIGH_AQI', 'NDMA_ALERT', 'BANDH']
@@ -27,6 +27,7 @@ export default function AdminDashboard() {
   const [triggerSources, setTriggerSources] = useState(null)
   const [zones, setZones] = useState([])
   const [workers, setWorkers] = useState([])
+  const [predictive, setPredictive] = useState(null)
   const [workerSearch, setWorkerSearch] = useState('')
   const [selectedWorkerId, setSelectedWorkerId] = useState('')
   const [preset, setPreset] = useState('clean_day')
@@ -58,8 +59,8 @@ export default function AdminDashboard() {
   }, [isAdmin])
 
   const loadAll = async () => {
-    const [d, p, f, t, z, s, w] = await Promise.allSettled([
-      getAdminDashboard(), getPendingClaims(), getFinancialSummary(), getZoneTrustScores(), getZones(), getTriggerSources(), getAllWorkers()
+    const [d, p, f, t, z, s, w, pr] = await Promise.allSettled([
+      getAdminDashboard(), getPendingClaims(), getFinancialSummary(), getZoneTrustScores(), getZones(), getTriggerSources(), getAllWorkers(), getPredictiveClaims()
     ])
     if (d.status === 'fulfilled') setDashboard(d.value.data)
     if (p.status === 'fulfilled') setPendingClaims(p.value.data)
@@ -68,6 +69,7 @@ export default function AdminDashboard() {
     if (z.status === 'fulfilled') { setZones(z.value.data) }
     if (s.status === 'fulfilled') setTriggerSources(s.value.data)
     if (w.status === 'fulfilled') setWorkers(w.value.data)
+    if (pr.status === 'fulfilled') setPredictive(pr.value.data)
   }
 
   const handleSimulate = async () => {
@@ -99,7 +101,7 @@ export default function AdminDashboard() {
     loadAll()
   }
 
-  const TABS = ['overview', 'workers', 'claims', 'simulate', 'zones', 'geo']
+  const TABS = ['overview', 'workers', 'claims', 'simulate', 'zones']
 
   const filteredWorkers = workers.filter((w) => {
     const q = workerSearch.trim().toLowerCase()
@@ -167,7 +169,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-gray-900 text-white px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold">RainReady Admin</h1>
+        <h1 className="text-xl font-bold">Hermetical Admin</h1>
         <div className="flex gap-4">
           {TABS.map(t => (
             <button key={t} onClick={() => setTab(t)}
@@ -184,7 +186,7 @@ export default function AdminDashboard() {
         {/* Overview */}
         {tab === 'overview' && dashboard && (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
               {[
                 { label: 'Active Policies', value: dashboard.total_active_policies },
                 { label: 'Disruptions (7d)', value: dashboard.disruptions_this_week },
@@ -192,9 +194,9 @@ export default function AdminDashboard() {
                 { label: 'Payouts (7d)', value: `₹${(dashboard.total_payouts_this_week || 0).toFixed(0)}` },
                 { label: 'Avg Payout Time', value: financial?.avg_payout_seconds != null ? `${financial.avg_payout_seconds.toFixed(1)}s` : '—' },
               ].map(m => (
-                <div key={m.label} className="bg-white rounded-xl shadow p-4">
-                  <p className="text-gray-500 text-sm">{m.label}</p>
-                  <p className="text-2xl font-bold text-gray-800 mt-1">{m.value}</p>
+                <div key={m.label} className="bg-white rounded-xl border border-gray-100 p-4">
+                  <p className="text-gray-500 text-xs uppercase tracking-wide">{m.label}</p>
+                  <p className="text-2xl font-bold text-gray-800 mt-2">{m.value}</p>
                 </div>
               ))}
             </div>
@@ -271,6 +273,36 @@ export default function AdminDashboard() {
                       <span key={status} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{status}: {count}</span>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {predictive && (
+              <div className="bg-white rounded-xl shadow p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-700">Next Week Predictive Claims</h3>
+                  <span className="text-xs text-gray-400">7d horizon</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div className="bg-indigo-50 rounded-lg p-3">
+                    <p className="text-xs text-indigo-600">Projected Claims</p>
+                    <p className="text-2xl font-bold text-indigo-700">{Number(predictive.total_projected_claims || 0).toFixed(1)}</p>
+                  </div>
+                  <div className="bg-rose-50 rounded-lg p-3">
+                    <p className="text-xs text-rose-600">Projected Exposure</p>
+                    <p className="text-2xl font-bold text-rose-700">₹{Number(predictive.total_projected_exposure || 0).toFixed(0)}</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {(predictive.zones || []).map((z) => (
+                    <div key={z.zone_id} className="flex items-center justify-between border border-gray-100 rounded-lg px-3 py-2 text-sm">
+                      <span className="text-gray-700">{z.zone_name}</span>
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-800">{Number(z.projected_claims_next_7d || 0).toFixed(1)} claims</p>
+                        <p className="text-xs text-gray-400">₹{Number(z.projected_payout_exposure || 0).toFixed(0)} exposure</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -456,6 +488,10 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-xl shadow p-4 space-y-4">
             <h3 className="font-semibold text-gray-700">Simulate Disruption</h3>
             <p className="text-sm text-gray-500">Trigger the full DTPM pipeline for demo purposes. Runs trigger evaluation → claims → payouts → LLM explanations.</p>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              Dual-trigger gate active (T1 and T2 required)
+            </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Scenario Preset</label>
               <select value={preset} onChange={e => applyPreset(e.target.value)}
@@ -569,25 +605,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {tab === 'geo' && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-xl shadow p-4">
-              <h3 className="font-semibold text-gray-700 mb-2">External Risk Evidence</h3>
-              <div className="text-sm text-gray-600 space-y-2">
-                <p><a className="text-blue-600 underline" href="https://aqicn.org/map/india/" target="_blank" rel="noreferrer">WAQI India AQI Map</a></p>
-                <p><a className="text-blue-600 underline" href="https://open-meteo.com/en/docs" target="_blank" rel="noreferrer">Open-Meteo API Docs</a></p>
-                <p><a className="text-blue-600 underline" href="https://mausam.imd.gov.in/imd_latest/contents/districtwise-warning.php" target="_blank" rel="noreferrer">IMD District Warnings</a></p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow p-2">
-              <iframe
-                title="WAQI India Map"
-                src="https://aqicn.org/map/india/"
-                className="w-full h-[560px] rounded-lg border-0"
-              />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
