@@ -1,7 +1,7 @@
 """
 Standalone seed script for 90-day zone activity baseline data.
 Run: python scripts/seed_historical_data.py
-Or inside Docker: docker exec -it rainready-server-1 python scripts/seed_historical_data.py
+Or inside Docker: docker exec -it guidewire_project-server-1 python scripts/seed_historical_data.py
 """
 import sys
 import os

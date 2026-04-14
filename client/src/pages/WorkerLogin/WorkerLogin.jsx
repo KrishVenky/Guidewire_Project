@@ -70,7 +70,7 @@ export default function WorkerLogin() {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-blue-900">Worker Login</h1>
-          <p className="text-gray-500 text-sm mt-1">Access your RainReady dashboard</p>
+          <p className="text-gray-500 text-sm mt-1">Access your Hermetical dashboard</p>
         </div>
 
         <div className="space-y-4">

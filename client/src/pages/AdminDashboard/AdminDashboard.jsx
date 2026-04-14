@@ -169,7 +169,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-gray-900 text-white px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold">RainReady Admin</h1>
+        <h1 className="text-xl font-bold">Hermetical Admin</h1>
         <div className="flex gap-4">
           {TABS.map(t => (
             <button key={t} onClick={() => setTab(t)}

@@ -237,5 +237,5 @@ Release readiness for auth is green only if all checklist items pass.
   - Use known demo OTP 123456 for this implementation
 
 - If routes are not redirecting correctly:
-  - Clear browser local storage for key rainready-store
+  - Clear browser local storage for key hermetical-store
   - Reload app
