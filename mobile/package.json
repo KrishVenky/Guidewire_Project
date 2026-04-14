@@ -19,9 +19,12 @@
     "expo-secure-store": "^55.0.13",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-safe-area-context": "^5.7.0",
-    "react-native-screens": "^4.24.0"
+    "react-native-screens": "^4.24.0",
+    "react-native-web": "^0.21.0",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",

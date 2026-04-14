@@ -10,13 +10,14 @@ import {
   Alert,
 } from 'react-native';
 import { useAuthStore } from '../store';
-import { workerAPI, policyAPI, claimAPI } from '../api';
+import { Claim, Disruption, Policy, Worker, workerAPI, policyAPI } from '../api';
 
 interface DashboardData {
-  worker: any;
-  policy: any;
-  claims: any[];
-  disruptions: any[];
+  worker: Worker;
+  policy: Policy | null;
+  claims: Claim[];
+  disruptions: Disruption[];
+  earningsProtected: number;
 }
 
 export default function WorkerDashboardScreen({ navigation }: any) {
@@ -26,17 +27,20 @@ export default function WorkerDashboardScreen({ navigation }: any) {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
   const fetchDashboard = async () => {
-    if (!workerId) return;
+    if (!workerId) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     try {
-      const [dashboardData, claimsData] = await Promise.all([
-        workerAPI.getDashboard(workerId),
-        claimAPI.getWorkerClaims(workerId),
-      ]);
+      const dashboardData = await workerAPI.getDashboard(workerId);
       setDashboard({
         worker: dashboardData.worker,
-        policy: dashboardData.policy,
-        claims: claimsData,
-        disruptions: dashboardData.disruptions || [],
+        policy: dashboardData.active_policy,
+        claims: dashboardData.recent_claims || [],
+        disruptions: dashboardData.active_disruptions || [],
+        earningsProtected: dashboardData.earnings_protected || 0,
       });
     } catch (error: any) {
       console.error('Failed to fetch dashboard:', error);
@@ -69,7 +73,24 @@ export default function WorkerDashboardScreen({ navigation }: any) {
     ]);
   };
 
-  if (loading) {
+  const handleActivateCoverage = async () => {
+    if (!workerId) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await policyAPI.create(workerId);
+      await fetchDashboard();
+      Alert.alert('Coverage Active', 'Your protection has been activated.');
+    } catch (error: any) {
+      Alert.alert('Activation Failed', error.response?.data?.detail || 'Please try again');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading && !dashboard) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#e94560" />
@@ -85,7 +106,6 @@ export default function WorkerDashboardScreen({ navigation }: any) {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#e94560" />
       }
     >
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Namaste, {dashboard?.worker?.full_name || 'Rider'}</Text>
@@ -96,10 +116,9 @@ export default function WorkerDashboardScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      {/* Policy Card */}
       {dashboard?.policy ? (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>📋 Your Policy</Text>
+          <Text style={styles.cardTitle}>Your Policy</Text>
           <View style={styles.policyDetails}>
             <View style={styles.policyRow}>
               <Text style={styles.policyLabel}>Status</Text>
@@ -109,47 +128,43 @@ export default function WorkerDashboardScreen({ navigation }: any) {
             </View>
             <View style={styles.policyRow}>
               <Text style={styles.policyLabel}>Weekly Premium</Text>
-              <Text style={styles.policyValue}>₹{dashboard.policy.weekly_premium}</Text>
+              <Text style={styles.policyValue}>INR {dashboard.policy.weekly_premium}</Text>
             </View>
             <View style={styles.policyRow}>
               <Text style={styles.policyLabel}>Coverage Amount</Text>
-              <Text style={styles.policyValueHighlight}>₹{dashboard.policy.coverage_amount}</Text>
+              <Text style={styles.policyValueHighlight}>INR {dashboard.policy.coverage_amount}</Text>
             </View>
             <View style={styles.policyRow}>
               <Text style={styles.policyLabel}>Total Payouts Received</Text>
-              <Text style={styles.policyValue}>₹{dashboard.policy.total_payouts_received || 0}</Text>
+              <Text style={styles.policyValue}>INR {dashboard.policy.total_payouts_received || 0}</Text>
             </View>
           </View>
         </View>
       ) : (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>📋 No Active Policy</Text>
+          <Text style={styles.cardTitle}>No Active Policy</Text>
           <Text style={styles.noPolicyText}>Get covered against income loss</Text>
-          <TouchableOpacity style={styles.activateButton}>
+          <TouchableOpacity style={styles.activateButton} onPress={handleActivateCoverage}>
             <Text style={styles.activateButtonText}>Activate Coverage</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Quick Stats */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{dashboard?.claims?.length || 0}</Text>
-          <Text style={styles.statLabel}>Total Claims</Text>
+          <Text style={styles.statLabel}>Recent Claims</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>
-            ₹{dashboard?.claims?.reduce((sum, c) => sum + (c.payout_amount || 0), 0) || 0}
-          </Text>
+          <Text style={styles.statValue}>INR {dashboard?.earningsProtected || 0}</Text>
           <Text style={styles.statLabel}>Total Protected</Text>
         </View>
       </View>
 
-      {/* Recent Claims */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>📝 Recent Claims</Text>
+        <Text style={styles.cardTitle}>Recent Claims</Text>
         {dashboard?.claims && dashboard.claims.length > 0 ? (
-          dashboard.claims.slice(0, 5).map((claim: any, index: number) => (
+          dashboard.claims.map((claim, index) => (
             <View key={claim.id} style={[styles.claimRow, index > 0 && styles.claimRowBorder]}>
               <View style={styles.claimInfo}>
                 <Text style={styles.claimStatus}>{claim.status}</Text>
@@ -157,7 +172,7 @@ export default function WorkerDashboardScreen({ navigation }: any) {
                   {new Date(claim.created_at).toLocaleDateString()}
                 </Text>
               </View>
-              <Text style={styles.claimAmount}>₹{claim.payout_amount || 0}</Text>
+              <Text style={styles.claimAmount}>INR {claim.payout_amount || 0}</Text>
             </View>
           ))
         ) : (
@@ -165,24 +180,23 @@ export default function WorkerDashboardScreen({ navigation }: any) {
         )}
       </View>
 
-      {/* Active Disruptions */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>⚠️ Active Disruptions in Your Zone</Text>
+        <Text style={styles.cardTitle}>Active Disruptions in Your Zone</Text>
         {dashboard?.disruptions && dashboard.disruptions.length > 0 ? (
-          dashboard.disruptions.map((d: any) => (
-            <View key={d.id} style={styles.disruptionBadge}>
+          dashboard.disruptions.map((disruption) => (
+            <View key={disruption.id} style={styles.disruptionBadge}>
               <Text style={styles.disruptionText}>
-                {d.event_type.replace('_', ' ')} - Severity: {d.severity_score}
+                {disruption.event_type.replaceAll('_', ' ')} | Severity {disruption.severity_score}
               </Text>
             </View>
           ))
         ) : (
-          <Text style={styles.noDisruptionsText}>No active disruptions - Keep riding! 🛵</Text>
+          <Text style={styles.noDisruptionsText}>No active disruptions. Keep riding.</Text>
         )}
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Protected by Hermetical 🛡️</Text>
+        <Text style={styles.footerText}>Protected by Hermetical</Text>
       </View>
     </ScrollView>
   );
@@ -308,9 +322,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#e94560',
+    textAlign: 'center',
   },
   statLabel: {
     color: '#a0a0a0',

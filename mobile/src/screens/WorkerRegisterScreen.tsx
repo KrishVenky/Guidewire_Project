@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { workerAPI } from '../api';
+import { Platform, workerAPI, ZoneOption } from '../api';
 
 type RootStackParamList = {
   WorkerRegister: undefined;
@@ -23,19 +23,41 @@ type NavigationProp = StackNavigationProp<RootStackParamList, 'WorkerRegister'>;
 export default function WorkerRegisterScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [loading, setLoading] = useState(false);
+  const [zonesLoading, setZonesLoading] = useState(true);
+  const [zones, setZones] = useState<ZoneOption[]>([]);
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
     upi_id: '',
-    platform: 'ZOMATO',
-    zone_id: '', // Will be selected in full implementation
+    platform: 'ZOMATO' as Platform,
+    zone_id: '',
     avg_weekly_income: '',
     declared_weekly_hours: '',
   });
 
+  useEffect(() => {
+    const loadZones = async () => {
+      try {
+        const zoneOptions = await workerAPI.getZones();
+        setZones(zoneOptions);
+        if (zoneOptions.length > 0) {
+          setFormData((current) => ({
+            ...current,
+            zone_id: current.zone_id || zoneOptions[0].id,
+          }));
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Could not load Bengaluru zones. Please try again.');
+      } finally {
+        setZonesLoading(false);
+      }
+    };
+
+    loadZones();
+  }, []);
+
   const handleRegister = async () => {
-    // Validation
-    if (!formData.full_name || !formData.phone || !formData.upi_id) {
+    if (!formData.full_name || !formData.phone || !formData.upi_id || !formData.zone_id) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
@@ -49,12 +71,13 @@ export default function WorkerRegisterScreen() {
 
     try {
       await workerAPI.register({
-        full_name: formData.full_name,
-        phone: formData.phone,
-        upi_id: formData.upi_id,
-        platform: formData.platform as any,
+        full_name: formData.full_name.trim(),
+        phone: formData.phone.trim(),
+        upi_id: formData.upi_id.trim(),
+        platform: formData.platform,
+        zone_id: formData.zone_id,
         avg_weekly_income: parseFloat(formData.avg_weekly_income) || 3500,
-        declared_weekly_hours: parseInt(formData.declared_weekly_hours) || 48,
+        declared_weekly_hours: parseInt(formData.declared_weekly_hours, 10) || 48,
       });
 
       Alert.alert('Success', 'Registration successful! Please login.', [
@@ -82,6 +105,7 @@ export default function WorkerRegisterScreen() {
         <TextInput
           style={styles.input}
           placeholder="Ravi Kumar"
+          placeholderTextColor="#666"
           value={formData.full_name}
           onChangeText={(text) => setFormData({ ...formData, full_name: text })}
         />
@@ -90,6 +114,7 @@ export default function WorkerRegisterScreen() {
         <TextInput
           style={styles.input}
           placeholder="9876543210"
+          placeholderTextColor="#666"
           keyboardType="phone-pad"
           value={formData.phone}
           onChangeText={(text) => setFormData({ ...formData, phone: text })}
@@ -100,6 +125,7 @@ export default function WorkerRegisterScreen() {
         <TextInput
           style={styles.input}
           placeholder="ravi@upi"
+          placeholderTextColor="#666"
           value={formData.upi_id}
           onChangeText={(text) => setFormData({ ...formData, upi_id: text })}
           autoCapitalize="none"
@@ -107,7 +133,7 @@ export default function WorkerRegisterScreen() {
 
         <Text style={styles.label}>Platform</Text>
         <View style={styles.platformSelector}>
-          {['ZOMATO', 'SWIGGY', 'BLINKIT'].map((platform) => (
+          {(['ZOMATO', 'SWIGGY', 'BLINKIT'] as Platform[]).map((platform) => (
             <TouchableOpacity
               key={platform}
               style={[
@@ -128,10 +154,32 @@ export default function WorkerRegisterScreen() {
           ))}
         </View>
 
-        <Text style={styles.label}>Avg Weekly Income (₹)</Text>
+        <Text style={styles.label}>Primary Zone</Text>
+        {zonesLoading ? (
+          <ActivityIndicator color="#e94560" style={styles.zoneLoader} />
+        ) : (
+          <View style={styles.zoneSelector}>
+            {zones.map((zone) => (
+              <TouchableOpacity
+                key={zone.id}
+                style={[
+                  styles.zoneButton,
+                  formData.zone_id === zone.id && styles.zoneButtonActive,
+                ]}
+                onPress={() => setFormData({ ...formData, zone_id: zone.id })}
+              >
+                <Text style={styles.zoneButtonText}>{zone.name}</Text>
+                <Text style={styles.zoneCityText}>{zone.city}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        <Text style={styles.label}>Avg Weekly Income (INR)</Text>
         <TextInput
           style={styles.input}
           placeholder="3500"
+          placeholderTextColor="#666"
           keyboardType="numeric"
           value={formData.avg_weekly_income}
           onChangeText={(text) => setFormData({ ...formData, avg_weekly_income: text })}
@@ -141,6 +189,7 @@ export default function WorkerRegisterScreen() {
         <TextInput
           style={styles.input}
           placeholder="48"
+          placeholderTextColor="#666"
           keyboardType="numeric"
           value={formData.declared_weekly_hours}
           onChangeText={(text) => setFormData({ ...formData, declared_weekly_hours: text })}
@@ -149,7 +198,7 @@ export default function WorkerRegisterScreen() {
         <TouchableOpacity
           style={[styles.submitButton, loading && styles.submitButtonDisabled]}
           onPress={handleRegister}
-          disabled={loading}
+          disabled={loading || zonesLoading}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -234,6 +283,34 @@ const styles = StyleSheet.create({
   },
   platformButtonTextActive: {
     color: '#ffffff',
+  },
+  zoneLoader: {
+    marginTop: 16,
+  },
+  zoneSelector: {
+    gap: 8,
+    marginTop: 8,
+  },
+  zoneButton: {
+    backgroundColor: '#16213e',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#0f3460',
+    padding: 14,
+  },
+  zoneButtonActive: {
+    borderColor: '#e94560',
+    backgroundColor: '#1b2748',
+  },
+  zoneButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  zoneCityText: {
+    color: '#a0a0a0',
+    fontSize: 12,
+    marginTop: 4,
   },
   submitButton: {
     backgroundColor: '#e94560',

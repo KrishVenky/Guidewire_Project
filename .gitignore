@@ -29,3 +29,16 @@ Thumbs.db
 
 .claude/
 .Makefile
+
+# Mobile (Expo)
+mobile/node_modules/
+mobile/.expo/
+mobile/.expo-shared/
+mobile/dist/
+mobile/ios/
+mobile/android/
+mobile/*.jks
+mobile/*.keystore
+mobile/*.pem
+mobile/*.p8
+mobile/eas.json.local

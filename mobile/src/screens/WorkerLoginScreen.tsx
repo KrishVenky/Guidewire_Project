@@ -57,8 +57,8 @@ export default function WorkerLoginScreen() {
     setLoading(true);
     try {
       const response = await authAPI.verifyOTP(phone, otp);
-      await login(response.token, response.worker_id, false);
-      navigation.navigate('WorkerDashboard', { workerId: response.worker_id });
+      await login(response.access_token, response.worker.id, false);
+      navigation.navigate('WorkerDashboard', { workerId: response.worker.id });
     } catch (error: any) {
       Alert.alert('Login Failed', error.response?.data?.detail || 'Invalid OTP');
     } finally {

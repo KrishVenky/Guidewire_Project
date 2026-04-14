@@ -1,12 +1,14 @@
 import api from './config';
 
 // Types
+export type Platform = 'ZOMATO' | 'SWIGGY' | 'BLINKIT' | 'INSTAMART';
+
 export interface Worker {
   id: string;
   full_name: string;
   phone: string;
   upi_id: string;
-  platform: 'ZOMATO' | 'SWIGGY' | 'BLINKIT' | 'INSTAMART';
+  platform: Platform;
   zone_id: string;
   avg_weekly_income: number;
   declared_weekly_hours: number;
@@ -36,21 +38,35 @@ export interface Disruption {
   event_type: 'HEAVY_RAIN' | 'EXTREME_HEAT' | 'HIGH_AQI' | 'NDMA_ALERT' | 'BANDH';
   severity_score: number;
   started_at: string;
-  ended_at: string;
+  ended_at?: string;
+}
+
+export interface WorkerDashboardResponse {
+  worker: Worker;
+  active_policy: Policy | null;
+  recent_claims: Claim[];
+  active_disruptions: Disruption[];
+  earnings_protected: number;
+}
+
+export interface ZoneOption {
+  id: string;
+  name: string;
+  city: string;
 }
 
 // Auth APIs
 export const authAPI = {
   requestOTP: async (phone: string) => {
-    const res = await api.post('/api/auth/request-otp', { phone });
+    const res = await api.post('/api/auth/worker/request-otp', { phone });
     return res.data;
   },
   verifyOTP: async (phone: string, otp: string) => {
-    const res = await api.post('/api/auth/verify-otp', { phone, otp });
+    const res = await api.post('/api/auth/worker/verify-otp', { phone, otp });
     return res.data;
   },
   adminLogin: async (pin: string) => {
-    const res = await api.post('/api/auth/admin-login', { pin });
+    const res = await api.post('/api/auth/admin/login', { pin });
     return res.data;
   },
 };
@@ -61,8 +77,12 @@ export const workerAPI = {
     const res = await api.post('/api/workers/register', data);
     return res.data;
   },
+  getZones: async () => {
+    const res = await api.get<ZoneOption[]>('/api/workers/zones');
+    return res.data;
+  },
   getDashboard: async (workerId: string) => {
-    const res = await api.get(`/api/workers/${workerId}/dashboard`);
+    const res = await api.get<WorkerDashboardResponse>(`/api/workers/${workerId}/dashboard`);
     return res.data;
   },
 };
@@ -110,7 +130,9 @@ export const adminAPI = {
     return res.data;
   },
   reviewClaim: async (claimId: string, approved: boolean) => {
-    const res = await api.post(`/api/claims/${claimId}/review`, { approved });
+    const res = await api.post(`/api/claims/${claimId}/review`, {
+      action: approved ? 'APPROVE' : 'REJECT',
+    });
     return res.data;
   },
 };

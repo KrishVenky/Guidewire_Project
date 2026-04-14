@@ -36,7 +36,7 @@ export default function AdminLoginScreen() {
     setLoading(true);
     try {
       const response = await authAPI.adminLogin(pin);
-      await login(response.token, null, true);
+      await login(response.access_token, null, true);
       navigation.navigate('AdminDashboard');
     } catch (error: any) {
       Alert.alert('Login Failed', error.response?.data?.detail || 'Invalid PIN');

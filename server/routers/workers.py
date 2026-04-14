@@ -5,6 +5,7 @@ from datetime import datetime
 
 from database import get_db
 from models.worker import Worker
+from models.zone import Zone
 from models.policy import Policy, PolicyStatus
 from models.claim import Claim, ClaimStatus
 from models.disruption_event import DisruptionEvent
@@ -12,6 +13,19 @@ from schemas.worker import WorkerCreate, WorkerUpdate, WorkerResponse, WorkerDas
 from auth import require_worker_or_admin, AuthPrincipal
 
 router = APIRouter(prefix="/api/workers", tags=["workers"])
+
+
+@router.get("/zones")
+def list_public_zones(db: Session = Depends(get_db)):
+    zones = db.query(Zone).order_by(Zone.name.asc()).all()
+    return [
+        {
+            "id": str(zone.id),
+            "name": zone.name,
+            "city": zone.city,
+        }
+        for zone in zones
+    ]
 
 
 @router.get("/lookup", response_model=WorkerResponse)
