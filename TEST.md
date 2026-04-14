@@ -121,7 +121,7 @@ Steps:
 
 Expected:
 - Admin dashboard loads
-- Admin tabs are visible (overview, workers, claims, simulate, zones, geo)
+- Admin tabs are visible (overview, workers, claims, simulate, zones)
 
 ### A2 - Invalid PIN
 Goal: invalid PIN is rejected.

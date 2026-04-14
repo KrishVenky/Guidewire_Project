@@ -4,6 +4,7 @@ from sqlalchemy import func
 from typing import List
 import asyncio
 import httpx
+from datetime import datetime, timedelta
 
 from database import get_db
 from models.worker import Worker
@@ -28,7 +29,6 @@ def admin_dashboard(db: Session = Depends(get_db)):
     total_active_policies = db.query(Policy).filter(Policy.status == PolicyStatus.ACTIVE).count()
     total_workers = db.query(Worker).filter(Worker.is_active == True).count()
 
-    from datetime import datetime, timedelta
     week_ago = datetime.utcnow() - timedelta(days=7)
 
     disruptions_this_week = db.query(DisruptionEvent).filter(
@@ -43,7 +43,10 @@ def admin_dashboard(db: Session = Depends(get_db)):
         Payout.status == PayoutStatus.COMPLETED,
     ).scalar() or 0.0
 
-    premiums_collected = db.query(func.sum(Policy.total_premiums_paid)).scalar() or 0.0
+    premiums_collected = db.query(func.sum(Policy.weekly_premium)).filter(
+        Policy.status == PolicyStatus.ACTIVE,
+        Policy.current_week_start >= week_ago.date(),
+    ).scalar() or 0.0
 
     loss_ratio = (payouts_this_week / premiums_collected) if premiums_collected > 0 else 0.0
     pending_review = db.query(Claim).filter(Claim.status == ClaimStatus.MANUAL_REVIEW).count()
@@ -56,6 +59,54 @@ def admin_dashboard(db: Session = Depends(get_db)):
         "total_payouts_this_week": round(payouts_this_week, 2),
         "loss_ratio": round(loss_ratio, 4),
         "pending_review_count": pending_review,
+    }
+
+
+@router.get("/predictive-claims")
+async def predictive_claims(db: Session = Depends(get_db)):
+    from integrations import open_meteo
+
+    zones = db.query(Zone).all()
+    rows = []
+
+    for zone in zones:
+        active_workers = db.query(Worker).filter(
+            Worker.zone_id == zone.id,
+            Worker.is_active == True,
+        ).count()
+
+        meteo = await open_meteo.get_current(zone.open_meteo_lat, zone.open_meteo_lng, zone.rain_threshold)
+        breach_prob = float(meteo.forecast_breach_prob or 0.0)
+
+        # Heuristic projection: only a fraction of threshold breaches create dual-trigger payouts.
+        dual_trigger_factor = 0.38
+        risk_amplifier = max(0.7, min(1.6, float(zone.risk_multiplier or 1.0)))
+        projected_claims = round(active_workers * breach_prob * dual_trigger_factor * risk_amplifier, 1)
+
+        avg_worker_income = db.query(func.avg(Worker.avg_weekly_income)).filter(
+            Worker.zone_id == zone.id,
+            Worker.is_active == True,
+        ).scalar() or 3500.0
+        avg_projected_payout = min((avg_worker_income * 0.6) * 0.75, 1500.0)
+
+        rows.append({
+            "zone_id": str(zone.id),
+            "zone_name": zone.name,
+            "active_workers": active_workers,
+            "forecast_breach_probability": round(breach_prob, 3),
+            "projected_claims_next_7d": projected_claims,
+            "projected_payout_exposure": round(projected_claims * avg_projected_payout, 2),
+        })
+
+    total_projected_claims = round(sum(r["projected_claims_next_7d"] for r in rows), 1)
+    total_exposure = round(sum(r["projected_payout_exposure"] for r in rows), 2)
+
+    return {
+        "generated_at": datetime.utcnow().isoformat(),
+        "horizon_days": 7,
+        "total_projected_claims": total_projected_claims,
+        "total_projected_exposure": total_exposure,
+        "zones": rows,
     }
 
 
