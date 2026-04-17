@@ -19,6 +19,44 @@ Existing insurance products don't help. Government schemes cover accidents and h
 
 Hermetical is a **dual-trigger parametric income insurance platform** built specifically for Zomato, Swiggy, and Blinkit delivery partners. Workers pay a small weekly premium. When a verified external disruption hits their zone, coverage activates automatically. No claim forms. No waiting. Payout lands in their UPI within minutes.
 
+## Phase 3 Implementation Snapshot (April 2026)
+
+This phase focused on platform hardening, trust/compliance artifacts, and insurer-style servicing UX.
+
+### Backend and Security Delivered
+
+- OTP service moved to secure random OTP generation with hashing, attempt limits, and cooldowns.
+- Runtime safety assertions added to block insecure defaults outside development.
+- PII access actions now generate admin/worker audit events.
+- Consent and claim evidence receipts now include deterministic hashes and retrieval endpoints.
+- Worker privacy lifecycle added (deletion request, admin review, redaction, retention checks).
+
+### Product APIs Delivered
+
+- Claim timeline endpoint for worker/admin status visibility.
+- Communication preference endpoints (language, channel opt-ins, quiet hours).
+- Policy consent receipt endpoint and claim evidence receipt endpoint.
+- Admin privacy and audit visibility endpoints.
+
+### Frontend and UX Delivered
+
+- Insurer-style landing page and role-based launch paths.
+- Cleaner worker login and onboarding flows.
+- Worker dashboard section jump navigation, timeline visibility, preference editor, and receipt downloads.
+- Admin dashboard navigation cleanup with desktop section rail and improved mobile tabs.
+
+### Verification Completed in Docker
+
+- Containerized client production build passes.
+- Docker smoke flow validated for:
+    - health and auth
+    - admin dashboard endpoints
+    - worker OTP login and protected endpoints
+    - disruption simulation
+    - claims timeline and evidence receipt retrieval
+
+See [FAILURE.md](FAILURE.md) for failure events encountered during this phase and exact fixes applied.
+
 ### Admin Operations (Current)
 
 The admin dashboard now supports operational review workflows needed for demos and manual controls:
@@ -257,6 +295,37 @@ A Postman collection and environment file are provided under `postman/` for all 
 
 - `postman/Hermetical_Phase2.postman_collection.json` — Full test suite covering registration, policy management, premium calculation, disruption simulation, claims pipeline, and admin endpoints. Each request includes test assertions on status codes, response schema, and business logic.
 - `postman/Hermetical.postman_environment.json` — Pre-configured environment with `base_url` and auto-captured variables (worker_id, policy_id, claim_id) set by Collection Runner test scripts.
+
+## Next Production Updates
+
+1. Security and Secrets
+- Rotate default admin PIN and secret key by environment.
+- Disable OTP debug return outside development.
+- Move all secrets to managed secret storage.
+
+2. Database and Migrations
+- Replace runtime schema backfill with versioned Alembic migrations.
+- Add migration checks to CI/CD.
+
+3. Async and Reliability
+- Move scheduler-critical workloads to worker queue (Celery + Redis).
+- Add retry policies, idempotency keys, and dead-letter handling for payouts and notifications.
+
+4. Observability
+- Add structured logging and request correlation IDs.
+- Add metrics and alerts for claim latency, payout failures, and auth anomalies.
+
+5. Compliance and Governance
+- Add immutable export pipeline for audit records.
+- Formalize retention policy jobs and deletion SLAs.
+
+6. Frontend and QA
+- Add Playwright smoke suite for worker/admin happy paths.
+- Add responsive regression checks for dashboard pages.
+
+7. Infrastructure
+- Remove legacy Compose `version` field warning.
+- Add production Docker profiles and health-gated startup checks.
 
 Run the entire collection in sequence via Collection Runner to walk through the full happy path. The disruption simulation request triggers the complete DTPM pipeline end-to-end.
 

@@ -21,6 +21,14 @@ class TrustTier(str, enum.Enum):
     TRUSTED_PARTNER = "TRUSTED_PARTNER"
 
 
+class PrivacyRequestStatus(str, enum.Enum):
+    NONE = "NONE"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    COMPLETED = "COMPLETED"
+
+
 class Worker(Base):
     __tablename__ = "workers"
 
@@ -39,6 +47,19 @@ class Worker(Base):
     kyc_verified = Column(Boolean, default=False)
     tenure_weeks = Column(Integer, default=0)
     trust_tier = Column(SAEnum(TrustTier), default=TrustTier.NEW_PARTNER)
+
+    pii_retention_until = Column(DateTime(timezone=True), nullable=True)
+    deletion_requested_at = Column(DateTime(timezone=True), nullable=True)
+    deletion_request_reason = Column(String, nullable=True)
+    deletion_request_status = Column(SAEnum(PrivacyRequestStatus), default=PrivacyRequestStatus.NONE)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    preferred_language = Column(String, default="en")
+    whatsapp_opt_in = Column(Boolean, default=True)
+    sms_opt_in = Column(Boolean, default=True)
+    email_opt_in = Column(Boolean, default=False)
+    proactive_alerts_opt_in = Column(Boolean, default=True)
+    quiet_hours_start = Column(Integer, nullable=True)
+    quiet_hours_end = Column(Integer, nullable=True)
 
     zone = relationship("Zone", back_populates="workers")
     policies = relationship("Policy", back_populates="worker")

@@ -9,11 +9,20 @@
 - Authentication is OTP + JWT based via `/api/auth/*` routes.
 - Role-based access is enforced across worker/admin endpoints.
 - Runtime is mock-first by default (`MOCK_MODE=true` in Docker), with deterministic offline integration behavior for Open-Meteo, WAQI, and SACHET.
+- OTP service is hardened with randomized OTP generation, hashing, cooldowns, and attempt limits.
+- Runtime safety assertions block insecure startup defaults outside development.
+- Compliance artifacts are active: policy consent receipts and claim evidence receipts with stable hashes.
+- Privacy lifecycle controls are active: deletion request, admin review/redaction, retention due reporting.
 - Admin dashboard includes:
     - Trigger source health panel (mock-aware)
     - Claims fraud review panel
     - Simulation presets with timeline replay controls
-    - **Workers tab** for fetching, searching, and inspecting driver details
+    - Workers tab for fetching, searching, and inspecting driver details
+    - Desktop section rail and improved mobile navigation tabs
+- Worker dashboard includes:
+    - Claim timeline views
+    - Communication preference controls
+    - Consent and evidence receipt downloads
 
 ---
 
@@ -32,7 +41,9 @@
 12. [Docker Setup](#12-docker-setup)
 13. [Testing Guide](#13-testing-guide)
 14. [Build Status](#14-build-status)
-15. [Known Issues & Tech Debt](#15-known-issues--tech-debt)
+15. [Phase 3 Additions](#15-phase-3--scale-additions-april-517)
+16. [Known Issues & Tech Debt](#16-known-issues--tech-debt)
+17. [Next Production Updates](#17-next-production-updates)
 
 ---
 
@@ -907,7 +918,31 @@ Add to `postman/RainReady_Phase3.postman_collection.json`:
 | T004 | Isolation Forest cold start for new workers uses zone model — may over-flag new accounts | Fraud Detector | Low |
 | T005 | APScheduler loses state on server restart — honeypot schedule must reinitialize | Scheduler | Medium |
 
+For incident-level failures encountered and fixed during this phase, see [FAILURE.md](FAILURE.md).
+
 ---
 
-*SYSTEM.md Version 2.0 — Phase 2 Build Ready*
-*Next update due: after first component reaches STABLE*
+## 17. Next Production Updates
+
+1. Security and secrets
+- Enforce non-default `SECRET_KEY` and `ADMIN_PIN` by environment policy.
+- Disable OTP debug return in staging/production.
+
+2. Database and migrations
+- Replace runtime schema backfill with Alembic migrations and CI migration checks.
+
+3. Reliability and async processing
+- Move payout/notification-critical jobs to Celery + Redis workers.
+- Add retry and idempotency controls for claims and payouts.
+
+4. Observability and operations
+- Add structured logging, correlation IDs, metrics, and alerting.
+
+5. QA and release quality
+- Add Playwright smoke suite for worker/admin happy paths.
+- Add CI gates for Docker build and API smoke checks.
+
+---
+
+*SYSTEM.md Version 3.0 — Phase 3 Documentation Update*
+*Next update due: before production hardening milestone*

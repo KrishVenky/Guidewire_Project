@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from uuid import UUID
 from datetime import date
@@ -14,6 +14,7 @@ from models.zone import Zone
 from schemas.policy import PolicyCreate, PolicyUpdate, PolicyResponse, PremiumBreakdown
 from services.premium_calculator import calculate
 from auth import require_worker_or_admin, AuthPrincipal
+from services.evidence_service import build_policy_consent_receipt
 
 LOSS_RATIO_SUSPEND_THRESHOLD = 0.85
 
@@ -54,7 +55,12 @@ def calculate_premium(worker_id: UUID, db: Session = Depends(get_db), principal:
 
 
 @router.post("/create", response_model=PolicyResponse, status_code=201)
-def create_policy(body: PolicyCreate, db: Session = Depends(get_db), principal: AuthPrincipal = Depends(require_worker_or_admin)):
+def create_policy(
+    body: PolicyCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_worker_or_admin),
+):
     if principal.role == "worker" and principal.worker_id != body.worker_id:
         raise HTTPException(status_code=403, detail="Access denied")
     worker = db.query(Worker).filter(Worker.id == body.worker_id).first()
@@ -91,6 +97,26 @@ def create_policy(body: PolicyCreate, db: Session = Depends(get_db), principal: 
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     today = date.today()
+
+    if not body.terms_accepted or not body.privacy_accepted:
+        raise HTTPException(status_code=400, detail="Terms and privacy consent are required")
+    if not body.consent_text_hash.strip():
+        raise HTTPException(status_code=400, detail="consent_text_hash is required")
+
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    ip_address = (forwarded_for.split(",")[0].strip() if forwarded_for else (request.client.host if request.client else "unknown"))
+    user_agent = request.headers.get("user-agent", "unknown")
+    consent_artifact, consent_receipt_hash = build_policy_consent_receipt(
+        worker_id=str(worker.id),
+        terms_version=body.terms_version,
+        privacy_version=body.privacy_version,
+        consent_text_hash=body.consent_text_hash.strip(),
+        consent_source=body.consent_source,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        accepted_at_iso=now.isoformat(),
+    )
+
     policy = Policy(
         worker_id=worker.id,
         weekly_premium=breakdown.weekly_premium,
@@ -102,6 +128,8 @@ def create_policy(body: PolicyCreate, db: Session = Depends(get_db), principal: 
         activation_source="DASHBOARD",
         terms_accepted_at=now,
         privacy_accepted_at=now,
+        consent_artifact=consent_artifact,
+        consent_receipt_hash=consent_receipt_hash,
     )
     db.add(policy)
     db.commit()
@@ -117,6 +145,29 @@ def get_policy(policy_id: UUID, db: Session = Depends(get_db), principal: AuthPr
     if principal.role == "worker" and principal.worker_id != policy.worker_id:
         raise HTTPException(status_code=403, detail="Access denied")
     return policy
+
+
+@router.get("/{policy_id}/consent-receipt")
+def get_policy_consent_receipt(
+    policy_id: UUID,
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_worker_or_admin),
+):
+    policy = db.query(Policy).filter(Policy.id == policy_id).first()
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    if principal.role == "worker" and principal.worker_id != policy.worker_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not policy.consent_artifact or not policy.consent_receipt_hash:
+        raise HTTPException(status_code=404, detail="Consent receipt not available")
+
+    return {
+        "policy_id": str(policy.id),
+        "worker_id": str(policy.worker_id),
+        "consent_receipt_hash": policy.consent_receipt_hash,
+        "consent_artifact": policy.consent_artifact,
+    }
 
 
 @router.put("/{policy_id}/pause", response_model=PolicyResponse)

@@ -3,6 +3,9 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    # Environment profile: development | staging | production
+    app_env: str = "development"
+
     # Runtime mode
     mock_mode: bool = True
 
@@ -31,7 +34,6 @@ class Settings(BaseSettings):
     admin_pin: str = "admin123"
     auth_debug_return_otp: bool = True
     debug: bool = True
-    mock_mode: bool = True
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
     class Config:
@@ -43,3 +45,27 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()
+
+
+def assert_runtime_safety(settings: Settings):
+    """
+    Block unsafe defaults in non-development environments.
+    """
+    if settings.app_env.lower() == "development":
+        return
+
+    unsafe_reasons = []
+    if settings.secret_key == "change_this_in_production":
+        unsafe_reasons.append("SECRET_KEY is using insecure default")
+    if settings.admin_pin == "admin123":
+        unsafe_reasons.append("ADMIN_PIN is using insecure default")
+    if settings.auth_debug_return_otp:
+        unsafe_reasons.append("AUTH_DEBUG_RETURN_OTP must be false")
+    if settings.debug:
+        unsafe_reasons.append("DEBUG must be false")
+    if settings.mock_mode:
+        unsafe_reasons.append("MOCK_MODE must be false")
+
+    if unsafe_reasons:
+        joined = "; ".join(unsafe_reasons)
+        raise RuntimeError(f"Unsafe runtime configuration for {settings.app_env}: {joined}")
