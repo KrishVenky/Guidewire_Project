@@ -30,7 +30,6 @@ export default function WorkerLoginScreen() {
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-
   const handleRequestOTP = async () => {
     if (phone.length !== 10) {
       Alert.alert('Error', 'Please enter a valid 10-digit phone number');
@@ -39,7 +38,10 @@ export default function WorkerLoginScreen() {
 
     setLoading(true);
     try {
-      await authAPI.requestOTP(phone);
+      const res = await authAPI.requestOTP(phone);
+      if (res.debug_otp) {
+        setOtp(res.debug_otp);
+      }
       setStep('otp');
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.detail || 'Failed to send OTP');
