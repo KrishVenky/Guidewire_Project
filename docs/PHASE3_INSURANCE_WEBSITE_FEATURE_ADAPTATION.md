@@ -1,6 +1,6 @@
 # Phase 3: Insurance Website Feature Adaptation
 
-This document maps external insurance UX patterns to concrete implementation choices for RainReady/Hermetical.
+This document maps external insurance UX patterns to concrete implementation choices for Hermetical.
 
 ## Websites Reviewed
 
@@ -93,9 +93,9 @@ Business value:
 - Zone-level preventive advisories (rain/heat/air quality prep steps)
 - Useful content pattern seen across insurer knowledge hubs.
 
-## Why This Fits RainReady
+## Why This Fits Hermetical
 
-RainReady is already strongest at trigger-based automation and explainability.
+Hermetical is already strongest at trigger-based automation and explainability.
 The added features improve user confidence in operations and communications,
 which is what mature insurer platforms do very well.
 

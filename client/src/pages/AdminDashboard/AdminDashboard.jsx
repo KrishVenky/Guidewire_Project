@@ -206,7 +206,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gray-50">
       <nav className="sticky top-0 z-20 bg-gray-900 text-white px-4 sm:px-6 py-4 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center shadow-lg">
         <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
-          <h1 className="text-xl font-bold">RainReady Admin</h1>
+          <h1 className="text-xl font-bold">Hermetical Admin</h1>
           <button onClick={() => { logout(); navigate('/') }} className="sm:hidden text-gray-400 hover:text-white text-sm">Logout</button>
         </div>
         <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto lg:hidden">

@@ -73,7 +73,7 @@ Most parametric systems use a single trigger — "it rained, here's money." The 
 
 Hermetical uses a **Dual-Trigger Parametric Model (DTPM)**:
 
-![Dual Trigger Model](docs/assets/gigshield_dual_trigger_model.png)
+![Dual Trigger Model](docs/assets/hermetical_dual_trigger_model.png)
 
 This eliminates false payouts and makes the model financially viable — a critical differentiator from a real insurance architecture standpoint.
 
@@ -96,7 +96,7 @@ Additionally, thresholds are **not hardcoded**. They are written to a `zone_conf
 
 ## Architecture Overview
 
-![System Architecture](docs/assets/gigshield_system_architecture_v2.png)
+![System Architecture](docs/assets/hermetical_system_architecture_v2.png)
 
 **Critical design principle:** The LLM never makes financial decisions. It only explains decisions already made by the deterministic rules engine — in plain Hinglish to the worker. All payout logic is fully auditable.
 
@@ -173,7 +173,7 @@ For bandh and curfew events that simultaneously affect large numbers of workers,
 
 Immediately after every payout, a 3-question in-app survey fires in Hinglish. Responses generate a **zone trust score** per zone per week on the admin dashboard. If a zone's trust score drops, the LLM explanation template for that zone is flagged for tone revision.
 
-![Trust Feedback Loop](docs/assets/gigshield_trust_feedback_loop.png)
+![Trust Feedback Loop](docs/assets/hermetical_trust_feedback_loop.png)
 
 ### Worker Trust Tier
 

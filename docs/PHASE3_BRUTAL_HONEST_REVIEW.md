@@ -229,7 +229,7 @@ Reality check: strong intent and decent execution, but too many critical control
 	- Keep runtime sync only as temporary safeguard
 
 16. Naming consistency indicates product identity drift
-- Evidence: rainready-client naming + hermetical store keys coexist
+- Evidence: hermetical-client naming + hermetical store keys coexist
 - File: client/package.json:2
 - File: client/src/api/index.js:13
 - Why this matters: weakens polish in final submission.
