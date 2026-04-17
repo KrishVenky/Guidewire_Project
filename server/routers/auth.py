@@ -1,4 +1,6 @@
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -8,10 +10,11 @@ from auth import create_access_token
 from config import get_settings
 from database import get_db
 from models.worker import Worker
-from services.otp_service import otp_service, OtpError
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 settings = get_settings()
+
+_otp_store: dict = {}
 
 
 class WorkerOtpRequest(BaseModel):
@@ -35,18 +38,13 @@ def request_worker_otp(body: WorkerOtpRequest, db: Session = Depends(get_db)):
 
     worker = db.query(Worker).filter(Worker.phone == phone).first()
     if not worker:
-        raise HTTPException(status_code=404, detail="Worker not found")
+        raise HTTPException(status_code=404, detail="Worker not found. Please register first.")
 
-    try:
-        otp = otp_service.request_otp(
-            phone=phone,
-            worker_id=str(worker.id),
-            exp_minutes=settings.otp_exp_minutes,
-        )
-    except OtpError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message)
+    otp = f"{secrets.randbelow(900000) + 100000}"
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.otp_exp_minutes)
+    _otp_store[phone] = {"otp": otp, "worker_id": str(worker.id), "expires_at": expires_at}
 
-    response = {"sent": True, "expires_in_minutes": settings.otp_exp_minutes}
+    response: dict = {"sent": True, "expires_in_minutes": settings.otp_exp_minutes}
     if settings.auth_debug_return_otp:
         response["debug_otp"] = otp
     return response
@@ -54,22 +52,39 @@ def request_worker_otp(body: WorkerOtpRequest, db: Session = Depends(get_db)):
 
 @router.post("/worker/verify-otp")
 def verify_worker_otp(body: WorkerOtpVerify, db: Session = Depends(get_db)):
-    try:
-        verify_result = otp_service.verify_otp(body.phone, body.otp)
-    except OtpError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message)
+    record = _otp_store.get(body.phone)
+    if not record:
+        raise HTTPException(status_code=401, detail="OTP not requested or already used")
 
-    worker_id = UUID(verify_result.worker_id)
+    if datetime.now(timezone.utc) > record["expires_at"]:
+        _otp_store.pop(body.phone, None)
+        raise HTTPException(status_code=401, detail="OTP expired")
+
+    if body.otp != record["otp"]:
+        raise HTTPException(status_code=401, detail="Invalid OTP")
+
+    worker_id = UUID(record["worker_id"])
     worker = db.query(Worker).filter(Worker.id == worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
+    _otp_store.pop(body.phone, None)
     token = create_access_token(role="worker", worker_id=worker.id)
     return {
         "access_token": token,
         "token_type": "bearer",
         "role": "worker",
-        "worker": worker,
+        "worker": {
+            "id": str(worker.id),
+            "full_name": worker.full_name,
+            "phone": worker.phone,
+            "platform": worker.platform.value if hasattr(worker.platform, "value") else worker.platform,
+            "zone_id": str(worker.zone_id),
+            "upi_id": worker.upi_id,
+            "avg_weekly_income": worker.avg_weekly_income,
+            "declared_weekly_hours": worker.declared_weekly_hours,
+            "trust_tier": worker.trust_tier.value if hasattr(worker.trust_tier, "value") else worker.trust_tier,
+        },
     }
 
 
