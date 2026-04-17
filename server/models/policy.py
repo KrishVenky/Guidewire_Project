@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, Integer, Boolean, Date, DateTime, Enum as SAEnum, ForeignKey
+from sqlalchemy import Column, String, Float, Integer, Boolean, Date, DateTime, Enum as SAEnum, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -33,6 +33,8 @@ class Policy(Base):
 
     terms_accepted_at = Column(DateTime(timezone=True), nullable=True)
     privacy_accepted_at = Column(DateTime(timezone=True), nullable=True)
+    consent_artifact = Column(JSON, nullable=True)
+    consent_receipt_hash = Column(String, nullable=True)
     activation_source = Column(String, default="DASHBOARD")  # must always be DASHBOARD
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

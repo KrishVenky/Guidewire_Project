@@ -32,6 +32,8 @@ class ClaimResponse(BaseModel):
     event_ended_at: Optional[datetime] = None
     duration_hours: float = 0.0
     llm_explanation: str
+    evidence_receipt_hash: Optional[str] = None
+    evidence_payload: Optional[dict] = None
     filed_at: Optional[datetime] = None
     created_at: datetime
     reviewed_at: Optional[datetime] = None

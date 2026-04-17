@@ -3,10 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from config import get_settings
+from config import get_settings, assert_runtime_safety
 from database import create_tables, SessionLocal
 
 settings = get_settings()
+assert_runtime_safety(settings)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 

@@ -7,6 +7,12 @@ from models.policy import PolicyStatus
 
 class PolicyCreate(BaseModel):
     worker_id: UUID
+    terms_accepted: bool = False
+    privacy_accepted: bool = False
+    terms_version: str = "v1"
+    privacy_version: str = "v1"
+    consent_text_hash: str = ""
+    consent_source: str = "ONBOARDING"
 
 
 class PolicyUpdate(BaseModel):
@@ -35,6 +41,8 @@ class PolicyResponse(BaseModel):
     premium_paid_this_week: bool
     total_premiums_paid: float
     total_payouts_received: float
+    consent_artifact: Optional[dict] = None
+    consent_receipt_hash: Optional[str] = None
     created_at: datetime
 
     class Config:

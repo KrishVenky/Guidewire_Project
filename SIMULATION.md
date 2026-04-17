@@ -2,6 +2,8 @@
 
 ## Quick Start
 
+Recommended for this phase: run fully via Docker to match validated judge/demo flow.
+
 ### 0. Optional: seed deterministic demo users
 ```bash
 make seed-demo
@@ -20,6 +22,16 @@ uvicorn server.main:app --reload --port 8000
 cd Guidewire_Project/client
 npm install
 npm run dev
+```
+
+### Docker-first startup (recommended)
+```bash
+docker compose up -d postgres redis server client
+```
+
+### Dockerized client build verification
+```bash
+docker compose run --rm --no-deps client sh -lc "npm install && npm run build"
 ```
 
 - Frontend: http://localhost:5173
@@ -109,6 +121,16 @@ Go back to http://localhost:5173 — the claim appears with:
       - KYC status
       - Income/hours and registration timestamp
 
+### Step 6 — Verify timeline and evidence receipt
+1. Worker dashboard -> open recent claim -> click View timeline
+2. Download evidence receipt from the claim card
+3. If policy is active, download consent receipt from coverage or receipts section
+
+Expected:
+- Timeline should render chronological claim events
+- Evidence receipt endpoint should return JSON payload with hash
+- Consent receipt endpoint should return JSON payload with hash
+
 ---
 
 ## All 5 Trigger Types
@@ -153,6 +175,18 @@ Available scenarios:
 - `aqi_spike_3day` — 3-day hazardous AQI
 
 Returns BCR (Benefit-Cost Ratio). Target: 0.55–0.70. System suspends new enrolments at BCR > 0.85.
+
+## Phase 3 Smoke Notes
+
+- Worker endpoints require worker bearer token; unauthenticated calls return 401/403 by design.
+- Timeline and evidence receipt checks require at least one generated claim.
+- If no pending claims exist, run a simulation for the worker's zone with `force_t2=true`.
+
+## Next Production Simulation Updates
+
+1. Add a single script target for full smoke (build + auth + simulate + timeline + receipt).
+2. Add repeatable scenario IDs for deterministic replay across environments.
+3. Add output summaries for pass/fail status to simplify demo setup checks.
 
 ---
 

@@ -13,6 +13,7 @@ from models.disruption_event import DisruptionEvent
 from models.worker import Worker
 from integrations import open_meteo
 from services import fraud_detector, premium_calculator, payout_service, llm_service
+from services.evidence_service import build_claim_evidence_receipt
 from ml import fraud_model
 
 
@@ -177,6 +178,29 @@ async def process_disruption_event(
         )
         db.add(claim)
         db.flush()
+
+        evidence_payload, evidence_hash = build_claim_evidence_receipt(
+            claim_id=str(claim.id),
+            worker_id=str(worker.id),
+            policy_id=str(active_policy.id),
+            event_id=str(event.id),
+            event_type=event.event_type.value,
+            event_source=event.source.value,
+            raw_value=float(event.raw_value or 0.0),
+            threshold_breached=float(event.threshold_breached or 0.0),
+            order_drop_pct=float(event.order_drop_pct or 0.0),
+            payout_tier=event.payout_tier.value,
+            claimed_hours=disruption_hours,
+            avg_weekly_income=float(worker.avg_weekly_income or 0.0),
+            declared_weekly_hours=int(worker.declared_weekly_hours or 0),
+            coverage_amount=float(active_policy.coverage_amount or 0.0),
+            payout_amount=float(payout_amount),
+            fraud_score=float(fraud_result.score),
+            fraud_flags=list(fraud_result.flags or []),
+            decision_reason_code=reason_code,
+        )
+        claim.evidence_payload = evidence_payload
+        claim.evidence_receipt_hash = evidence_hash
 
         # Generate LLM explanation
         explanation, _ = await llm_service.generate_claim_explanation(

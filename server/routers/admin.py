@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
 import asyncio
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from database import get_db
 from models.worker import Worker
@@ -13,9 +13,14 @@ from models.claim import Claim, ClaimStatus
 from models.payout import Payout, PayoutStatus
 from models.disruption_event import DisruptionEvent
 from models.zone import Zone
+from models.worker import PrivacyRequestStatus
+from models.audit_log import AuditLog
+from models.audit_log import TriggeredBy
 from schemas.worker import WorkerResponse
+from schemas.worker import PrivacyRetentionUpdate
 from integrations.order_proxy import is_bandh_active
 from services.premium_calculator import compute_payout
+from services.audit_service import log_event
 from auth import require_admin
 from config import get_settings
 
@@ -43,9 +48,8 @@ def admin_dashboard(db: Session = Depends(get_db)):
         Payout.status == PayoutStatus.COMPLETED,
     ).scalar() or 0.0
 
-    premiums_collected = db.query(func.sum(Policy.weekly_premium)).filter(
+    premiums_collected = db.query(func.sum(Policy.total_premiums_paid)).filter(
         Policy.status == PolicyStatus.ACTIVE,
-        Policy.current_week_start >= week_ago.date(),
     ).scalar() or 0.0
 
     loss_ratio = (payouts_this_week / premiums_collected) if premiums_collected > 0 else 0.0
@@ -102,7 +106,7 @@ async def predictive_claims(db: Session = Depends(get_db)):
     total_exposure = round(sum(r["projected_payout_exposure"] for r in rows), 2)
 
     return {
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "horizon_days": 7,
         "total_projected_claims": total_projected_claims,
         "total_projected_exposure": total_exposure,
@@ -130,7 +134,16 @@ def pending_claims(db: Session = Depends(get_db)):
 
 @router.get("/workers", response_model=List[WorkerResponse])
 def all_workers(db: Session = Depends(get_db)):
-    return db.query(Worker).filter(Worker.is_active == True).all()
+    workers = db.query(Worker).filter(Worker.is_active == True).all()
+    log_event(
+        db=db,
+        entity_type="worker",
+        entity_id=None,
+        action="PII_BULK_WORKER_DIRECTORY_VIEW",
+        triggered_by=TriggeredBy.ADMIN,
+        new_value={"count": len(workers)},
+    )
+    return workers
 
 
 @router.get("/financial-summary")
@@ -376,3 +389,188 @@ def trigger_sources_status(db: Session = Depends(get_db)):
         "order_proxy": {"configured": True, "reachable": True},
         "bandh_mock": {"configured": True, "reachable": True},
     }
+
+
+@router.get("/privacy/deletion-requests")
+def list_privacy_deletion_requests(
+    status: str = "PENDING",
+    db: Session = Depends(get_db),
+):
+    try:
+        status_enum = PrivacyRequestStatus(status.upper())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    workers = db.query(Worker).filter(Worker.deletion_request_status == status_enum).all()
+    log_event(
+        db=db,
+        entity_type="worker",
+        entity_id=None,
+        action="PRIVACY_DELETION_QUEUE_VIEW",
+        triggered_by=TriggeredBy.ADMIN,
+        new_value={"status": status_enum.value, "count": len(workers)},
+    )
+    return [
+        {
+            "worker_id": str(w.id),
+            "full_name": w.full_name,
+            "phone": w.phone,
+            "deletion_requested_at": w.deletion_requested_at.isoformat() if w.deletion_requested_at else None,
+            "deletion_request_reason": w.deletion_request_reason,
+            "deletion_request_status": w.deletion_request_status.value if w.deletion_request_status else None,
+            "pii_retention_until": w.pii_retention_until.isoformat() if w.pii_retention_until else None,
+            "deleted_at": w.deleted_at.isoformat() if w.deleted_at else None,
+        }
+        for w in workers
+    ]
+
+
+@router.post("/privacy/deletion-requests/{worker_id}/review")
+def review_privacy_deletion_request(
+    worker_id: str,
+    action: str,
+    db: Session = Depends(get_db),
+):
+    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+
+    normalized = action.upper().strip()
+    if normalized not in {"APPROVE", "REJECT"}:
+        raise HTTPException(status_code=400, detail="action must be APPROVE or REJECT")
+
+    worker.deletion_request_status = (
+        PrivacyRequestStatus.APPROVED if normalized == "APPROVE" else PrivacyRequestStatus.REJECTED
+    )
+    db.commit()
+    db.refresh(worker)
+
+    log_event(
+        db=db,
+        entity_type="worker",
+        entity_id=worker.id,
+        action="PRIVACY_DELETION_REQUEST_REVIEWED",
+        triggered_by=TriggeredBy.ADMIN,
+        new_value={"action": normalized, "status": worker.deletion_request_status.value},
+    )
+
+    return {
+        "worker_id": str(worker.id),
+        "deletion_request_status": worker.deletion_request_status.value,
+    }
+
+
+@router.post("/privacy/deletion-requests/{worker_id}/execute-redaction")
+def execute_privacy_redaction(worker_id: str, db: Session = Depends(get_db)):
+    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+
+    if worker.deletion_request_status != PrivacyRequestStatus.APPROVED:
+        raise HTTPException(status_code=409, detail="Deletion request must be APPROVED before redaction")
+
+    if worker.deleted_at:
+        return {"worker_id": str(worker.id), "status": "already_redacted"}
+
+    now = datetime.utcnow()
+    redacted_suffix = str(worker.id).split("-")[0]
+    worker.full_name = "REDACTED"
+    worker.phone = f"redacted-{redacted_suffix}"
+    worker.upi_id = "redacted@upi"
+    worker.is_active = False
+    worker.kyc_verified = False
+    worker.deleted_at = now
+    worker.deletion_request_status = PrivacyRequestStatus.COMPLETED
+
+    db.commit()
+    db.refresh(worker)
+
+    log_event(
+        db=db,
+        entity_type="worker",
+        entity_id=worker.id,
+        action="PRIVACY_REDACTION_EXECUTED",
+        triggered_by=TriggeredBy.ADMIN,
+        new_value={"deleted_at": worker.deleted_at.isoformat()},
+    )
+
+    return {
+        "worker_id": str(worker.id),
+        "deletion_request_status": worker.deletion_request_status.value,
+        "deleted_at": worker.deleted_at.isoformat() if worker.deleted_at else None,
+    }
+
+
+@router.put("/privacy/retention/{worker_id}")
+def update_privacy_retention(worker_id: str, body: PrivacyRetentionUpdate, db: Session = Depends(get_db)):
+    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+
+    worker.pii_retention_until = datetime.utcnow() + timedelta(days=body.retention_days)
+    db.commit()
+    db.refresh(worker)
+
+    log_event(
+        db=db,
+        entity_type="worker",
+        entity_id=worker.id,
+        action="PRIVACY_RETENTION_UPDATED",
+        triggered_by=TriggeredBy.ADMIN,
+        new_value={"pii_retention_until": worker.pii_retention_until.isoformat(), "retention_days": body.retention_days},
+    )
+
+    return {
+        "worker_id": str(worker.id),
+        "pii_retention_until": worker.pii_retention_until.isoformat() if worker.pii_retention_until else None,
+    }
+
+
+@router.get("/privacy/retention-due")
+def list_retention_due_workers(db: Session = Depends(get_db)):
+    now = datetime.utcnow()
+    workers = db.query(Worker).filter(
+        Worker.pii_retention_until != None,
+        Worker.pii_retention_until <= now,
+        Worker.deleted_at == None,
+    ).all()
+
+    return [
+        {
+            "worker_id": str(w.id),
+            "full_name": w.full_name,
+            "pii_retention_until": w.pii_retention_until.isoformat() if w.pii_retention_until else None,
+            "deletion_request_status": w.deletion_request_status.value if w.deletion_request_status else None,
+        }
+        for w in workers
+    ]
+
+
+@router.get("/audit-logs")
+def view_audit_logs(
+    entity_type: str | None = None,
+    action: str | None = None,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    safe_limit = max(1, min(limit, 500))
+    q = db.query(AuditLog)
+    if entity_type:
+        q = q.filter(AuditLog.entity_type == entity_type)
+    if action:
+        q = q.filter(AuditLog.action == action)
+
+    logs = q.order_by(AuditLog.timestamp.desc()).limit(safe_limit).all()
+    return [
+        {
+            "id": str(l.id),
+            "entity_type": l.entity_type,
+            "entity_id": str(l.entity_id),
+            "action": l.action,
+            "old_value": l.old_value,
+            "new_value": l.new_value,
+            "triggered_by": l.triggered_by.value if l.triggered_by else None,
+            "timestamp": l.timestamp.isoformat() if l.timestamp else None,
+        }
+        for l in logs
+    ]

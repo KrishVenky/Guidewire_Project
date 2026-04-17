@@ -6,6 +6,12 @@ const PLATFORMS = ['ZOMATO', 'SWIGGY', 'BLINKIT', 'INSTAMART', 'MULTIPLE']
 
 const STEPS = ['Account', 'Details', 'Done']
 
+const BENEFITS = [
+  'Fast setup in a few minutes',
+  'Claims and receipts in one dashboard',
+  'Service-center style support controls',
+]
+
 export default function Onboarding() {
   const navigate = useNavigate()
 
@@ -72,149 +78,204 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-blue-900">Worker Registration</h1>
-          <p className="text-gray-500 text-sm mt-1">Create your account first, then login to manage coverage</p>
-        </div>
-
-        <div className="flex justify-between mb-8">
-          {STEPS.map((s, i) => (
-            <div key={s} className="flex flex-col items-center flex-1">
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
-                  ${i < step ? 'bg-green-500 text-white' : i === step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}
-              >
-                {i < step ? '✓' : i + 1}
-              </div>
-              <span className="text-xs text-gray-400 mt-1 hidden sm:block">{s}</span>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.2),_transparent_30%),linear-gradient(180deg,#081220_0%,#0f172a_40%,#f8fafc_40%,#f8fafc_100%)] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl items-center gap-6 lg:grid-cols-12">
+        <section className="lg:col-span-5 rounded-[2rem] bg-slate-950 text-white shadow-2xl overflow-hidden relative">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.28),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.16),transparent_24%)]" />
+          <div className="relative p-7 sm:p-10 lg:p-12 space-y-8">
+            <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold tracking-[0.22em] text-blue-200 uppercase">
+              Worker onboarding
             </div>
-          ))}
-        </div>
-
-        <div className="space-y-4">
-          {step === 0 && (
-            <>
-              <h2 className="text-xl font-semibold text-gray-800">Mobile Number</h2>
-              <input
-                type="tel"
-                maxLength={10}
-                placeholder="9876543210"
-                value={form.phone}
-                onChange={(e) => update('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </>
-          )}
-
-          {step === 1 && (
-            <>
-              <h2 className="text-xl font-semibold text-gray-800">Your details</h2>
-              <input
-                placeholder="Full name"
-                value={form.full_name}
-                onChange={(e) => update('full_name', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <select
-                value={form.platform}
-                onChange={(e) => update('platform', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {PLATFORMS.map((p) => <option key={p}>{p}</option>)}
-              </select>
-              <select
-                value={form.zone_id}
-                onChange={(e) => update('zone_id', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select your delivery zone</option>
-                {zones.map((z) => <option key={z.id} value={z.id}>{z.name}, {z.city}</option>)}
-              </select>
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Average weekly income (₹)</label>
-                <input
-                  type="number"
-                  value={form.avg_weekly_income}
-                  onChange={(e) => update('avg_weekly_income', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Hours worked per week</label>
-                <input
-                  type="number"
-                  value={form.declared_weekly_hours}
-                  onChange={(e) => update('declared_weekly_hours', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">UPI ID</label>
-                <input
-                  placeholder="yourname@upi"
-                  value={form.upi_id}
-                  onChange={(e) => update('upi_id', e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <div className="text-center space-y-4">
-              <div className="text-6xl">✅</div>
-              <h2 className="text-2xl font-bold text-green-600">Registration complete</h2>
-              <p className="text-gray-600">
-                Your account is ready for {registeredPhone}. Please login to access your dashboard and activate coverage.
+            <div className="space-y-4 max-w-xl">
+              <h1 className="text-4xl sm:text-5xl font-semibold leading-none tracking-tight">
+                Create your profile.
+                <span className="block text-blue-200">Start coverage faster.</span>
+              </h1>
+              <p className="text-sm sm:text-base text-slate-300 max-w-lg">
+                A guided sign-up flow inspired by insurer quote and onboarding journeys: simple steps, clear progress, and the important details grouped together.
               </p>
             </div>
-          )}
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
-              {error}
+            <div className="space-y-3">
+              {BENEFITS.map((benefit) => (
+                <div key={benefit} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 backdrop-blur">
+                  {benefit}
+                </div>
+              ))}
             </div>
-          )}
+          </div>
+        </section>
 
-          <div className="flex gap-3">
-            {step > 0 && step < 2 && (
-              <button
-                onClick={() => { setError(''); setStep(step - 1) }}
-                disabled={loading}
-                className="w-1/3 border border-gray-300 text-gray-600 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                Back
-              </button>
-            )}
-            {step === 0 && (
-              <button
-                onClick={() => navigate('/')}
-                disabled={loading}
-                className="w-1/3 border border-gray-300 text-gray-600 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                Back
-              </button>
-            )}
-            <button
-              onClick={next}
-              disabled={loading}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
-            >
-              {loading ? 'Please wait...' : step === 2 ? 'Go to Login' : 'Continue'}
+        <section className="lg:col-span-7 rounded-[2rem] bg-white shadow-2xl border border-slate-100 p-6 sm:p-8 lg:p-10">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-8">
+            <div>
+              <p className="text-xs uppercase tracking-[0.25em] text-blue-700 font-semibold">Worker Registration</p>
+              <h2 className="text-3xl font-semibold text-slate-900">Create your account</h2>
+            </div>
+            <button onClick={() => navigate('/worker/login')} className="text-sm text-blue-700 underline underline-offset-4 self-start sm:self-auto">
+              Already registered? Login
             </button>
           </div>
 
-          {step < 2 && (
-            <p className="text-center text-sm">
-              Already registered?{' '}
-              <button onClick={() => navigate('/worker/login')} className="text-blue-600 underline">
-                Login here
-              </button>
-            </p>
-          )}
-        </div>
+          <div className="grid gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex xl:flex-col gap-3 xl:gap-4 overflow-x-auto xl:overflow-visible pb-1 xl:pb-0">
+                {STEPS.map((s, i) => (
+                  <div key={s} className="flex items-center gap-3 xl:items-start xl:gap-0 xl:flex-col min-w-[88px] xl:min-w-0">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0
+                        ${i < step ? 'bg-emerald-500 text-white' : i === step ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}
+                    >
+                      {i < step ? '✓' : i + 1}
+                    </div>
+                    <span className={`text-xs font-medium ${i === step ? 'text-slate-900' : 'text-slate-500'} xl:mt-2`}>{s}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              {step === 0 && (
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-xl font-semibold text-slate-900">Mobile number</h3>
+                    <p className="text-sm text-slate-500">We’ll use this to verify your account.</p>
+                  </div>
+                  <input
+                    type="tel"
+                    maxLength={10}
+                    placeholder="9876543210"
+                    value={form.phone}
+                    onChange={(e) => update('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg tracking-wide outline-none transition focus:border-blue-500 focus:bg-white"
+                  />
+                </div>
+              )}
+
+              {step === 1 && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2 space-y-1">
+                    <h3 className="text-xl font-semibold text-slate-900">Your details</h3>
+                    <p className="text-sm text-slate-500">Add the information needed to calculate coverage and set up payouts.</p>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 block mb-2">Full name</label>
+                    <input
+                      placeholder="Full name"
+                      value={form.full_name}
+                      onChange={(e) => update('full_name', e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 block mb-2">Platform</label>
+                    <select
+                      value={form.platform}
+                      onChange={(e) => update('platform', e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-500 focus:bg-white"
+                    >
+                      {PLATFORMS.map((p) => <option key={p}>{p}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 block mb-2">Zone</label>
+                    <select
+                      value={form.zone_id}
+                      onChange={(e) => update('zone_id', e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-500 focus:bg-white"
+                    >
+                      <option value="">Select your delivery zone</option>
+                      {zones.map((z) => <option key={z.id} value={z.id}>{z.name}, {z.city}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 block mb-2">Average weekly income (₹)</label>
+                    <input
+                      type="number"
+                      value={form.avg_weekly_income}
+                      onChange={(e) => update('avg_weekly_income', e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 block mb-2">Hours per week</label>
+                    <input
+                      type="number"
+                      value={form.declared_weekly_hours}
+                      onChange={(e) => update('declared_weekly_hours', e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 block mb-2">UPI ID</label>
+                    <input
+                      placeholder="yourname@upi"
+                      value={form.upi_id}
+                      onChange={(e) => update('upi_id', e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-500 focus:bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-center space-y-3">
+                  <div className="text-5xl">✅</div>
+                  <h3 className="text-2xl font-semibold text-emerald-700">Registration complete</h3>
+                  <p className="text-slate-600">
+                    Your account is ready for {registeredPhone}. Log in next to activate coverage and manage your dashboard.
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                {step > 0 && step < 2 && (
+                  <button
+                    onClick={() => { setError(''); setStep(step - 1) }}
+                    disabled={loading}
+                    className="sm:w-36 rounded-2xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Back
+                  </button>
+                )}
+                {step === 0 && (
+                  <button
+                    onClick={() => navigate('/')}
+                    disabled={loading}
+                    className="sm:w-36 rounded-2xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Home
+                  </button>
+                )}
+                <button
+                  onClick={next}
+                  disabled={loading}
+                  className="flex-1 rounded-2xl bg-slate-950 px-4 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {loading ? 'Please wait...' : step === 2 ? 'Go to Login' : 'Continue'}
+                </button>
+              </div>
+
+              {step < 2 && (
+                <p className="text-center text-sm text-slate-500">
+                  Already registered? <button onClick={() => navigate('/worker/login')} className="text-blue-700 underline underline-offset-4">Login here</button>
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   )

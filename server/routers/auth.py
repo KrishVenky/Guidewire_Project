@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,11 +8,10 @@ from auth import create_access_token
 from config import get_settings
 from database import get_db
 from models.worker import Worker
+from services.otp_service import otp_service, OtpError
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 settings = get_settings()
-
-_otp_store = {}
 
 
 class WorkerOtpRequest(BaseModel):
@@ -39,10 +37,14 @@ def request_worker_otp(body: WorkerOtpRequest, db: Session = Depends(get_db)):
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
-    # Demo-safe OTP generation. Replace with SMS provider in production.
-    otp = "123456"
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.otp_exp_minutes)
-    _otp_store[phone] = {"otp": otp, "worker_id": str(worker.id), "expires_at": expires_at}
+    try:
+        otp = otp_service.request_otp(
+            phone=phone,
+            worker_id=str(worker.id),
+            exp_minutes=settings.otp_exp_minutes,
+        )
+    except OtpError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
     response = {"sent": True, "expires_in_minutes": settings.otp_exp_minutes}
     if settings.auth_debug_return_otp:
@@ -52,23 +54,16 @@ def request_worker_otp(body: WorkerOtpRequest, db: Session = Depends(get_db)):
 
 @router.post("/worker/verify-otp")
 def verify_worker_otp(body: WorkerOtpVerify, db: Session = Depends(get_db)):
-    record = _otp_store.get(body.phone)
-    if not record:
-        raise HTTPException(status_code=401, detail="OTP not requested")
+    try:
+        verify_result = otp_service.verify_otp(body.phone, body.otp)
+    except OtpError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
-    if datetime.now(timezone.utc) > record["expires_at"]:
-        _otp_store.pop(body.phone, None)
-        raise HTTPException(status_code=401, detail="OTP expired")
-
-    if body.otp != record["otp"]:
-        raise HTTPException(status_code=401, detail="Invalid OTP")
-
-    worker_id = UUID(record["worker_id"])
+    worker_id = UUID(verify_result.worker_id)
     worker = db.query(Worker).filter(Worker.id == worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
-    _otp_store.pop(body.phone, None)
     token = create_access_token(role="worker", worker_id=worker.id)
     return {
         "access_token": token,

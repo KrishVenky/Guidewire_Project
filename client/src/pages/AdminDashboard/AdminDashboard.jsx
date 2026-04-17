@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../../store'
 import {
   getAdminDashboard, getPendingClaims, getFinancialSummary,
-  getZoneTrustScores, getZones, getTriggerSources, getPredictiveClaims, simulateDisruption, toggleBandh, reviewClaim, adminLogin, getAllWorkers
+  getZoneTrustScores, getZones, getTriggerSources, getPredictiveClaims, simulateDisruption, toggleBandh, reviewClaim, adminLogin, getAllWorkers, getClaimTimeline
 } from '../../api'
 
 const EVENT_TYPES = ['HEAVY_RAIN', 'EXTREME_HEAT', 'HIGH_AQI', 'NDMA_ALERT', 'BANDH']
@@ -13,6 +13,15 @@ const SCENARIO_PRESETS = {
   velocity_attack: { event_type: 'HEAVY_RAIN', raw_value: 78.0, force_t2: true, simulation_duration_days: 3, is_honeypot: false },
   honeypot: { event_type: 'HIGH_AQI', raw_value: 420, force_t2: true, simulation_duration_days: 1, is_honeypot: true },
   monsoon_14day: { event_type: 'HEAVY_RAIN', raw_value: 85.0, force_t2: true, simulation_duration_days: 14, is_honeypot: false },
+}
+
+const TAB_META = {
+  overview: { label: 'Overview', hint: 'Portfolio and trigger health' },
+  workers: { label: 'Workers', hint: 'Search and inspect drivers' },
+  claims: { label: 'Claims', hint: 'Manual review queue' },
+  simulate: { label: 'Simulate', hint: 'Run disruption scenarios' },
+  zones: { label: 'Zones', hint: 'Bandh and zone controls' },
+  geo: { label: 'Geo', hint: 'External risk evidence' },
 }
 
 export default function AdminDashboard() {
@@ -30,6 +39,9 @@ export default function AdminDashboard() {
   const [predictive, setPredictive] = useState(null)
   const [workerSearch, setWorkerSearch] = useState('')
   const [selectedWorkerId, setSelectedWorkerId] = useState('')
+  const [selectedClaimTimeline, setSelectedClaimTimeline] = useState(null)
+  const [claimTimeline, setClaimTimeline] = useState(null)
+  const [claimTimelineLoading, setClaimTimelineLoading] = useState(false)
   const [preset, setPreset] = useState('clean_day')
   const [simForm, setSimForm] = useState({
     zone_id: '',
@@ -101,7 +113,21 @@ export default function AdminDashboard() {
     loadAll()
   }
 
-  const TABS = ['overview', 'workers', 'claims', 'simulate', 'zones']
+  const openClaimTimeline = async (claimId) => {
+    setSelectedClaimTimeline(claimId)
+    setClaimTimeline(null)
+    setClaimTimelineLoading(true)
+    try {
+      const res = await getClaimTimeline(claimId)
+      setClaimTimeline(res.data)
+    } catch (e) {
+      setClaimTimeline({ error: e?.response?.data?.detail || 'Could not load claim timeline' })
+    } finally {
+      setClaimTimelineLoading(false)
+    }
+  }
+
+  const TABS = ['overview', 'workers', 'claims', 'simulate', 'zones', 'geo']
 
   const filteredWorkers = workers.filter((w) => {
     const q = workerSearch.trim().toLowerCase()
@@ -168,20 +194,43 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-gray-900 text-white px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold">Hermetical Admin</h1>
-        <div className="flex gap-4">
+      <nav className="sticky top-0 z-20 bg-gray-900 text-white px-4 sm:px-6 py-4 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center shadow-lg">
+        <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
+          <h1 className="text-xl font-bold">RainReady Admin</h1>
+          <button onClick={() => { logout(); navigate('/') }} className="sm:hidden text-gray-400 hover:text-white text-sm">Logout</button>
+        </div>
+        <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-1 scrollbar-none w-full sm:w-auto lg:hidden">
           {TABS.map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`capitalize text-sm px-3 py-1 rounded-lg ${tab === t ? 'bg-white text-gray-900 font-medium' : 'text-gray-300 hover:text-white'}`}>
-              {t}
+              className={`capitalize text-sm px-3 py-1 rounded-lg whitespace-nowrap ${tab === t ? 'bg-white text-gray-900 font-medium' : 'text-gray-300 hover:text-white'}`}>
+              {TAB_META[t]?.label || t}
             </button>
           ))}
-          <button onClick={() => { logout(); navigate('/') }} className="text-gray-400 hover:text-white text-sm ml-2">Logout</button>
+          <button onClick={() => { logout(); navigate('/') }} className="hidden sm:inline-block text-gray-400 hover:text-white text-sm ml-2 whitespace-nowrap">Logout</button>
         </div>
+        <button onClick={() => { logout(); navigate('/') }} className="hidden lg:inline-block text-gray-400 hover:text-white text-sm ml-2 whitespace-nowrap">Logout</button>
       </nav>
 
-      <div className="max-w-5xl mx-auto p-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid lg:grid-cols-[220px_minmax(0,1fr)] gap-6">
+        <aside className="hidden lg:block self-start sticky top-24">
+          <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+            <p className="px-2 pb-2 text-xs uppercase tracking-[0.2em] text-gray-400">Sections</p>
+            <div className="space-y-1">
+              {TABS.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`w-full rounded-xl px-3 py-2 text-left transition-colors ${tab === t ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}
+                >
+                  <p className="text-sm font-medium">{TAB_META[t]?.label || t}</p>
+                  <p className="text-xs text-gray-400">{TAB_META[t]?.hint || ''}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <div className="space-y-6 min-w-0">
 
         {/* Overview */}
         {tab === 'overview' && dashboard && (
@@ -404,83 +453,119 @@ export default function AdminDashboard() {
 
         {/* Claims Review */}
         {tab === 'claims' && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-xl shadow p-4">
-              <h3 className="font-semibold text-gray-700 mb-3">Pending Claims ({pendingClaims.length})</h3>
-              {pendingClaims.length === 0 && <p className="text-gray-400 text-sm">No claims pending review.</p>}
-              <div className="space-y-3">
-                {pendingClaims.map(c => (
-                  <div key={c.id} className="border border-yellow-200 rounded-lg p-3 bg-yellow-50">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Claim {c.id.slice(0, 8)}…</p>
-                        {c.decision_reason_code && (
-                          <p className="text-xs font-semibold text-orange-700 mt-0.5">
-                            Reason: {c.decision_reason_code.replace(/_/g, ' ')}
-                          </p>
-                        )}
-                        <p className="text-sm text-gray-500">Fraud score: <span className="font-medium text-red-600">{c.fraud_score.toFixed(2)}</span></p>
-                        <div className="flex gap-1 flex-wrap mt-1">
-                          {(c.fraud_flags || []).map(f => (
-                            <span key={f} className="px-1.5 py-0.5 bg-red-100 text-red-600 rounded text-xs">{f}</span>
-                          ))}
+          <>
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl shadow p-4">
+                <h3 className="font-semibold text-gray-700 mb-3">Pending Claims ({pendingClaims.length})</h3>
+                {pendingClaims.length === 0 && <p className="text-gray-400 text-sm">No claims pending review.</p>}
+                <div className="space-y-3">
+                  {pendingClaims.map(c => (
+                    <div key={c.id} className="border border-yellow-200 rounded-lg p-3 bg-yellow-50">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Claim {c.id.slice(0, 8)}…</p>
+                          {c.decision_reason_code && (
+                            <p className="text-xs font-semibold text-orange-700 mt-0.5">
+                              Reason: {c.decision_reason_code.replace(/_/g, ' ')}
+                            </p>
+                          )}
+                          <p className="text-sm text-gray-500">Fraud score: <span className="font-medium text-red-600">{c.fraud_score.toFixed(2)}</span></p>
+                          <div className="flex gap-1 flex-wrap mt-1">
+                            {(c.fraud_flags || []).map(f => (
+                              <span key={f} className="px-1.5 py-0.5 bg-red-100 text-red-600 rounded text-xs">{f}</span>
+                            ))}
+                          </div>
                         </div>
+                        <span className="font-bold text-blue-700">₹{c.payout_amount?.toFixed(0)}</span>
                       </div>
-                      <span className="font-bold text-blue-700">₹{c.payout_amount?.toFixed(0)}</span>
+                      <button
+                        onClick={() => openClaimTimeline(c.id)}
+                        className="text-xs text-blue-700 underline mt-2"
+                      >
+                        View claim timeline
+                      </button>
+                      <div className="flex gap-2 mt-3">
+                        <button onClick={() => handleReview(c.id, 'APPROVE')}
+                          className="flex-1 py-1.5 bg-green-600 text-white text-sm rounded-lg">Approve</button>
+                        <button onClick={() => handleReview(c.id, 'REJECT')}
+                          className="flex-1 py-1.5 bg-red-600 text-white text-sm rounded-lg">Reject</button>
+                      </div>
                     </div>
-                    <div className="flex gap-2 mt-3">
-                      <button onClick={() => handleReview(c.id, 'APPROVE')}
-                        className="flex-1 py-1.5 bg-green-600 text-white text-sm rounded-lg">Approve</button>
-                      <button onClick={() => handleReview(c.id, 'REJECT')}
-                        className="flex-1 py-1.5 bg-red-600 text-white text-sm rounded-lg">Reject</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fraud Intelligence Panel */}
+              <div className="bg-white rounded-xl shadow p-4">
+                <h3 className="font-semibold text-gray-700 mb-3">Fraud Intelligence</h3>
+                {pendingClaims.length === 0 ? (
+                  <p className="text-gray-400 text-sm">No flagged claims detected.</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-red-50 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-red-600">{pendingClaims.length}</p>
+                        <p className="text-xs text-gray-500 mt-1">Flagged Claims</p>
+                      </div>
+                      <div className="bg-orange-50 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-orange-600">
+                          {pendingClaims.length > 0 ? Math.max(...pendingClaims.map(c => c.fraud_score)).toFixed(2) : '0.00'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">Highest Score</p>
+                      </div>
+                      <div className="bg-yellow-50 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-yellow-600">
+                          ₹{pendingClaims.reduce((sum, c) => sum + (c.payout_amount || 0), 0).toFixed(0)}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">Held Payout</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-2 font-medium">Active Fraud Signals</p>
+                      <div className="flex gap-1 flex-wrap">
+                        {[...new Set(pendingClaims.flatMap(c => c.fraud_flags || []))].map(flag => {
+                          const count = pendingClaims.filter(c => (c.fraud_flags || []).includes(flag)).length
+                          return (
+                            <span key={flag} className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                              {flag} ×{count}
+                            </span>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
-            {/* Fraud Intelligence Panel */}
-            <div className="bg-white rounded-xl shadow p-4">
-              <h3 className="font-semibold text-gray-700 mb-3">Fraud Intelligence</h3>
-              {pendingClaims.length === 0 ? (
-                <p className="text-gray-400 text-sm">No flagged claims detected.</p>
-              ) : (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-red-50 rounded-lg p-3 text-center">
-                      <p className="text-2xl font-bold text-red-600">{pendingClaims.length}</p>
-                      <p className="text-xs text-gray-500 mt-1">Flagged Claims</p>
-                    </div>
-                    <div className="bg-orange-50 rounded-lg p-3 text-center">
-                      <p className="text-2xl font-bold text-orange-600">
-                        {pendingClaims.length > 0 ? Math.max(...pendingClaims.map(c => c.fraud_score)).toFixed(2) : '0.00'}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">Highest Score</p>
-                    </div>
-                    <div className="bg-yellow-50 rounded-lg p-3 text-center">
-                      <p className="text-2xl font-bold text-yellow-600">
-                        ₹{pendingClaims.reduce((sum, c) => sum + (c.payout_amount || 0), 0).toFixed(0)}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">Held Payout</p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-2 font-medium">Active Fraud Signals</p>
-                    <div className="flex gap-1 flex-wrap">
-                      {[...new Set(pendingClaims.flatMap(c => c.fraud_flags || []))].map(flag => {
-                        const count = pendingClaims.filter(c => (c.fraud_flags || []).includes(flag)).length
-                        return (
-                          <span key={flag} className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
-                            {flag} ×{count}
-                          </span>
-                        )
-                      })}
-                    </div>
-                  </div>
+            {selectedClaimTimeline && claimTimeline && !claimTimeline.error && (
+              <div className="bg-white rounded-xl shadow p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-semibold text-gray-700">Claim Timeline</h3>
+                  <button onClick={() => { setSelectedClaimTimeline(null); setClaimTimeline(null) }} className="text-sm text-gray-500 underline">
+                    Close
+                  </button>
                 </div>
-              )}
-            </div>
-          </div>
+                <div className="space-y-3">
+                  {claimTimeline.events.map((event) => (
+                    <div key={`${event.code}-${event.timestamp || 'na'}`} className="border border-gray-100 rounded-lg p-3">
+                      <div className="flex justify-between items-center gap-2">
+                        <p className="font-medium text-gray-800">{event.label}</p>
+                        <span className="text-xs text-gray-400">{event.timestamp ? new Date(event.timestamp).toLocaleString('en-IN') : 'Pending'}</span>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">{event.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedClaimTimeline && claimTimeline?.error && (
+              <div className="bg-white rounded-xl shadow p-4 text-sm text-red-700 border border-red-100">
+                {claimTimeline.error}
+              </div>
+            )}
+          </>
         )}
 
         {/* Simulate Disruption */}
@@ -605,6 +690,26 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {tab === 'geo' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl shadow p-4">
+              <h3 className="font-semibold text-gray-700 mb-2">External Risk Evidence</h3>
+              <div className="text-sm text-gray-600 space-y-2">
+                <p><a className="text-blue-600 underline" href="https://aqicn.org/map/india/" target="_blank" rel="noreferrer">WAQI India AQI Map</a></p>
+                <p><a className="text-blue-600 underline" href="https://open-meteo.com/en/docs" target="_blank" rel="noreferrer">Open-Meteo API Docs</a></p>
+                <p><a className="text-blue-600 underline" href="https://mausam.imd.gov.in/imd_latest/contents/districtwise-warning.php" target="_blank" rel="noreferrer">IMD District Warnings</a></p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow p-2">
+              <iframe
+                title="WAQI India Map"
+                src="https://aqicn.org/map/india/"
+                className="w-full h-[560px] rounded-lg border-0"
+              />
+            </div>
+          </div>
+        )}
+        </div>
       </div>
     </div>
   )

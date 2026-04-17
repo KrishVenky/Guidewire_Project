@@ -44,9 +44,9 @@ Admin PIN for default setup:
 - admin123
 
 Worker OTP in current demo implementation:
-- 123456
+- Randomized 6-digit OTP per request
 
-Note: if AUTH_DEBUG_RETURN_OTP=true, UI also shows Demo OTP after requesting OTP.
+Note: if AUTH_DEBUG_RETURN_OTP=true, API response includes debug_otp and UI can show it for testing.
 
 ## 3. Worker Login Tests (UI)
 
@@ -57,7 +57,7 @@ Steps:
 1. Open http://localhost:5173/worker/login
 2. Enter seeded phone (for example 9000000001)
 3. Click Send OTP
-4. Enter OTP 123456
+4. Enter the OTP shown by debug_otp (or delivered via your OTP provider)
 5. Click Verify OTP
 
 Expected:
@@ -169,7 +169,7 @@ Expected:
 ```bash
 curl -s -X POST http://localhost:8000/api/auth/worker/verify-otp \
   -H "Content-Type: application/json" \
-  -d '{"phone":"9000000001","otp":"123456"}'
+  -d '{"phone":"9000000001","otp":"<OTP_FROM_API1_DEBUG_OTP>"}'
 ```
 
 Expected:
@@ -234,8 +234,44 @@ Release readiness for auth is green only if all checklist items pass.
 
 - If OTP is not visible in UI:
   - Ensure AUTH_DEBUG_RETURN_OTP=true
-  - Use known demo OTP 123456 for this implementation
+  - Check request-otp API response for debug_otp value
 
 - If routes are not redirecting correctly:
   - Clear browser local storage for key hermetical-store
   - Reload app
+
+## 8. Phase 3 Validation Log (April 2026)
+
+The following checks were executed in Docker during this phase:
+
+- Client production build in container: PASS
+- API health endpoint: PASS (200)
+- Admin login and dashboard endpoints: PASS (200)
+- Worker OTP request and verify flow: PASS (200)
+- Worker protected dashboard/policy/preferences endpoints: PASS (200)
+- Disruption simulation endpoint: PASS (201)
+- Claims timeline and evidence receipt endpoints (post-simulation): PASS (200)
+
+Notes:
+- A JSX structure issue in Admin dashboard was detected by Dockerized Vite build and fixed.
+- Claims timeline/receipt checks require a generated claim for the same authenticated worker.
+
+## 9. Next Production Test Additions
+
+1. Add Playwright end-to-end tests:
+- Worker login -> dashboard -> timeline -> receipt download
+- Admin login -> claims review -> simulation -> workers lookup
+
+2. Add API contract tests for:
+- communication preference validation edge cases
+- privacy deletion lifecycle and retention endpoints
+- consent and evidence receipt hash integrity
+
+3. Add security tests for:
+- OTP rate limiting and lockout behavior
+- role boundary checks for all admin endpoints
+- non-dev runtime safety assertions
+
+4. Add performance checks:
+- claim timeline response latency under concurrent load
+- scheduler stability under repeated simulation triggers
