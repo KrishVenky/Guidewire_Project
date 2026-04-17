@@ -116,7 +116,7 @@ async def predictive_claims(db: Session = Depends(get_db)):
 
 @router.get("/claims/pending")
 def pending_claims(db: Session = Depends(get_db)):
-    claims = db.query(Claim).filter(Claim.status == ClaimStatus.MANUAL_REVIEW).all()
+    claims = db.query(Claim).order_by(Claim.created_at.desc()).limit(100).all()
     return [
         {
             "id": str(c.id),

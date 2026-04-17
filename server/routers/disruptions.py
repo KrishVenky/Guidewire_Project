@@ -159,14 +159,43 @@ async def simulate_disruption(body: SimulateDisruptionRequest, db: Session = Dep
 
 
 @router.post("/bandh/toggle")
-def toggle_bandh(body: BandhToggleRequest, db: Session = Depends(get_db), _: AuthPrincipal = Depends(require_admin)):
+async def toggle_bandh(body: BandhToggleRequest, db: Session = Depends(get_db), _: AuthPrincipal = Depends(require_admin)):
     zone = db.query(Zone).filter(Zone.id == body.zone_id).first()
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
     
     set_bandh(str(body.zone_id), body.active)
     
-    if not body.active:
+    if body.active:
+        # Check if already active
+        existing = db.query(DisruptionEvent).filter(
+            DisruptionEvent.zone_id == zone.id,
+            DisruptionEvent.event_type == EventType.BANDH,
+            DisruptionEvent.ended_at.is_(None)
+        ).first()
+        if not existing:
+            now = datetime.now(timezone.utc)
+            event = DisruptionEvent(
+                zone_id=zone.id,
+                event_type=EventType.BANDH,
+                source=EventSource.ADMIN,
+                severity_score=1.0,
+                raw_value=1.0,
+                threshold_breached=1.0,
+                order_drop_pct=zone.order_drop_threshold + 5.0,
+                t1_confirmed=True,
+                t2_confirmed=True,
+                dual_trigger_fired=True,
+                payout_tier=PayoutTier.FULL,
+                is_honeypot=False,
+                started_at=now,
+            )
+            db.add(event)
+            db.commit()
+            db.refresh(event)
+            event.zone = zone
+            await process_disruption_event(event, db)
+    else:
         active_events = db.query(DisruptionEvent).filter(
             DisruptionEvent.zone_id == zone.id,
             DisruptionEvent.event_type == EventType.BANDH,
