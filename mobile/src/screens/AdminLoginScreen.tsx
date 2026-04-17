@@ -57,7 +57,7 @@ export default function AdminLoginScreen() {
         <TextInput
           style={[styles.input, styles.pinInput]}
           placeholder="****"
-          keyboardType="number-pad"
+          keyboardType="default"
           value={pin}
           onChangeText={setPin}
           maxLength={8}
