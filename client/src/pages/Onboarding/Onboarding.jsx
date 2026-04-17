@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getZones, registerWorker } from '../../api'
+import { getPublicZones, registerWorker } from '../../api'
 
 const PLATFORMS = ['ZOMATO', 'SWIGGY', 'BLINKIT', 'INSTAMART', 'MULTIPLE']
 
@@ -32,7 +32,7 @@ export default function Onboarding() {
   })
 
   useEffect(() => {
-    getZones().then((r) => setZones(r.data)).catch(() => {})
+    getPublicZones().then((r) => setZones(r.data)).catch(() => {})
   }, [])
 
   const update = (k, v) => setForm((f) => ({ ...f, [k]: v }))

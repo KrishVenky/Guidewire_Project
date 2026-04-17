@@ -80,6 +80,7 @@ export const getAllWorkers = () => api.get('/admin/workers')
 export const getFinancialSummary = () => api.get('/admin/financial-summary')
 export const getZoneTrustScores = () => api.get('/admin/zone-trust-scores')
 export const getZones = () => api.get('/admin/zones')
+export const getPublicZones = () => api.get('/workers/zones')
 export const getTriggerSources = () => api.get('/admin/trigger-sources')
 export const getPredictiveClaims = () => api.get('/admin/predictive-claims')
 
