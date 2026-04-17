@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     mock_mode: bool = True
 
     # Database
-    database_url: str = "postgresql://rainready:rainready@localhost:5432/rainready"
+    database_url: str = "postgresql://hermetical:hermetical@localhost:5432/hermetical"
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"

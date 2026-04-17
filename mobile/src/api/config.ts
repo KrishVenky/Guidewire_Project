@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import * as storage from '../lib/storage';
 
 const fallbackBaseUrl =
   Platform.OS === 'web'
@@ -22,7 +22,7 @@ const api = axios.create({
 
 // Add auth token to requests
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('auth_token');
+  const token = await storage.getItemAsync('auth_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -34,7 +34,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      SecureStore.deleteItemAsync('auth_token');
+      storage.deleteItemAsync('auth_token');
     }
     return Promise.reject(error);
   }

@@ -25,11 +25,13 @@ export default function WorkerDashboardScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchDashboard = async () => {
     if (!workerId) {
       setLoading(false);
       setRefreshing(false);
+      setErrorMessage('No worker session was found. Please sign in again.');
       return;
     }
 
@@ -42,8 +44,10 @@ export default function WorkerDashboardScreen({ navigation }: any) {
         disruptions: dashboardData.active_disruptions || [],
         earningsProtected: dashboardData.earnings_protected || 0,
       });
+      setErrorMessage(null);
     } catch (error: any) {
       console.error('Failed to fetch dashboard:', error);
+      setErrorMessage(error.response?.data?.detail || 'Unable to load your dashboard right now.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -99,6 +103,18 @@ export default function WorkerDashboardScreen({ navigation }: any) {
     );
   }
 
+  if (!dashboard) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorTitle}>Dashboard unavailable</Text>
+        <Text style={styles.errorText}>{errorMessage || 'Please try again in a moment.'}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={fetchDashboard}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
@@ -108,7 +124,7 @@ export default function WorkerDashboardScreen({ navigation }: any) {
     >
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Namaste, {dashboard?.worker?.full_name || 'Rider'}</Text>
+          <Text style={styles.greeting}>Namaste, {dashboard.worker.full_name || 'Rider'}</Text>
           <Text style={styles.subGreeting}>Stay protected with Hermetical</Text>
         </View>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
@@ -116,7 +132,7 @@ export default function WorkerDashboardScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      {dashboard?.policy ? (
+      {dashboard.policy ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Your Policy</Text>
           <View style={styles.policyDetails}>
@@ -136,7 +152,9 @@ export default function WorkerDashboardScreen({ navigation }: any) {
             </View>
             <View style={styles.policyRow}>
               <Text style={styles.policyLabel}>Total Payouts Received</Text>
-              <Text style={styles.policyValue}>INR {dashboard.policy.total_payouts_received || 0}</Text>
+              <Text style={styles.policyValue}>
+                INR {dashboard.policy.total_payouts_received || 0}
+              </Text>
             </View>
           </View>
         </View>
@@ -152,25 +170,23 @@ export default function WorkerDashboardScreen({ navigation }: any) {
 
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>{dashboard?.claims?.length || 0}</Text>
+          <Text style={styles.statValue}>{dashboard.claims.length}</Text>
           <Text style={styles.statLabel}>Recent Claims</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>INR {dashboard?.earningsProtected || 0}</Text>
+          <Text style={styles.statValue}>INR {dashboard.earningsProtected || 0}</Text>
           <Text style={styles.statLabel}>Total Protected</Text>
         </View>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Recent Claims</Text>
-        {dashboard?.claims && dashboard.claims.length > 0 ? (
+        {dashboard.claims.length > 0 ? (
           dashboard.claims.map((claim, index) => (
             <View key={claim.id} style={[styles.claimRow, index > 0 && styles.claimRowBorder]}>
               <View style={styles.claimInfo}>
                 <Text style={styles.claimStatus}>{claim.status}</Text>
-                <Text style={styles.claimDate}>
-                  {new Date(claim.created_at).toLocaleDateString()}
-                </Text>
+                <Text style={styles.claimDate}>{new Date(claim.created_at).toLocaleDateString()}</Text>
               </View>
               <Text style={styles.claimAmount}>INR {claim.payout_amount || 0}</Text>
             </View>
@@ -182,11 +198,11 @@ export default function WorkerDashboardScreen({ navigation }: any) {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Active Disruptions in Your Zone</Text>
-        {dashboard?.disruptions && dashboard.disruptions.length > 0 ? (
+        {dashboard.disruptions.length > 0 ? (
           dashboard.disruptions.map((disruption) => (
             <View key={disruption.id} style={styles.disruptionBadge}>
               <Text style={styles.disruptionText}>
-                {disruption.event_type.replaceAll('_', ' ')} | Severity {disruption.severity_score}
+                {disruption.event_type.replace(/_/g, ' ')} | Severity {disruption.severity_score}
               </Text>
             </View>
           ))
@@ -212,10 +228,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#1a1a2e',
+    padding: 24,
   },
   loadingText: {
     color: '#a0a0a0',
     marginTop: 16,
+    textAlign: 'center',
+  },
+  errorTitle: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  errorText: {
+    color: '#a0a0a0',
+    fontSize: 14,
+    marginTop: 12,
+    textAlign: 'center',
+    maxWidth: 320,
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#e94560',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
   },
   header: {
     padding: 20,

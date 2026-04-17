@@ -18,6 +18,7 @@ export default function AdminDashboardScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [dashboard, setDashboard] = useState<any>(null);
   const [pendingClaims, setPendingClaims] = useState<any[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fetchDashboard = async () => {
     try {
@@ -27,8 +28,10 @@ export default function AdminDashboardScreen({ navigation }: any) {
       ]);
       setDashboard(dashboardData);
       setPendingClaims(claimsData);
+      setErrorMessage(null);
     } catch (error: any) {
       console.error('Failed to fetch dashboard:', error);
+      setErrorMessage(error.response?.data?.detail || 'Unable to load the admin dashboard right now.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -90,6 +93,18 @@ export default function AdminDashboardScreen({ navigation }: any) {
     );
   }
 
+  if (!dashboard) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorTitle}>Admin dashboard unavailable</Text>
+        <Text style={styles.errorText}>{errorMessage || 'Please try again in a moment.'}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={fetchDashboard}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
@@ -97,7 +112,6 @@ export default function AdminDashboardScreen({ navigation }: any) {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#e94560" />
       }
     >
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Admin Dashboard</Text>
@@ -108,14 +122,13 @@ export default function AdminDashboardScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      {/* Key Metrics */}
       <View style={styles.metricsContainer}>
         <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{dashboard?.total_active_policies || 0}</Text>
+          <Text style={styles.metricValue}>{dashboard.total_active_policies || 0}</Text>
           <Text style={styles.metricLabel}>Active Policies</Text>
         </View>
         <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{dashboard?.total_workers || 0}</Text>
+          <Text style={styles.metricValue}>{dashboard.total_workers || 0}</Text>
           <Text style={styles.metricLabel}>Total Workers</Text>
         </View>
       </View>
@@ -123,48 +136,41 @@ export default function AdminDashboardScreen({ navigation }: any) {
       <View style={styles.metricsContainer}>
         <View style={[styles.metricCard, styles.metricCardHighlight]}>
           <Text style={[styles.metricValue, styles.metricValueHighlight]}>
-            {dashboard?.pending_review_count || 0}
+            {dashboard.pending_review_count || 0}
           </Text>
           <Text style={styles.metricLabel}>Pending Review</Text>
         </View>
         <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{(dashboard?.loss_ratio || 0) * 100}%</Text>
+          <Text style={styles.metricValue}>{(dashboard.loss_ratio || 0) * 100}%</Text>
           <Text style={styles.metricLabel}>Loss Ratio</Text>
         </View>
       </View>
 
-      {/* Financial Summary Card */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>💰 This Week</Text>
+        <Text style={styles.cardTitle}>This Week</Text>
         <View style={styles.financialRow}>
           <Text style={styles.financialLabel}>Total Payouts</Text>
-          <Text style={styles.financialValue}>₹{dashboard?.total_payouts_this_week || 0}</Text>
+          <Text style={styles.financialValue}>INR {dashboard.total_payouts_this_week || 0}</Text>
         </View>
         <View style={styles.financialRow}>
           <Text style={styles.financialLabel}>Total Claims</Text>
-          <Text style={styles.financialValue}>{dashboard?.total_claims_this_week || 0}</Text>
+          <Text style={styles.financialValue}>{dashboard.total_claims_this_week || 0}</Text>
         </View>
         <View style={styles.financialRow}>
           <Text style={styles.financialLabel}>Disruptions</Text>
-          <Text style={styles.financialValue}>{dashboard?.disruptions_this_week || 0}</Text>
+          <Text style={styles.financialValue}>{dashboard.disruptions_this_week || 0}</Text>
         </View>
       </View>
 
-      {/* Pending Claims */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>⏳ Pending Claims Review</Text>
+        <Text style={styles.cardTitle}>Pending Claims Review</Text>
         {pendingClaims.length > 0 ? (
           pendingClaims.map((claim: any, index: number) => (
-            <View
-              key={claim.id}
-              style={[styles.claimCard, index > 0 && styles.claimCardBorder]}
-            >
+            <View key={claim.id} style={[styles.claimCard, index > 0 && styles.claimCardBorder]}>
               <View style={styles.claimHeader}>
                 <Text style={styles.claimId}>Claim #{claim.id.slice(0, 8)}</Text>
                 <View style={styles.fraudScoreBadge}>
-                  <Text style={styles.fraudScoreText}>
-                    Fraud Score: {claim.fraud_score}
-                  </Text>
+                  <Text style={styles.fraudScoreText}>Fraud Score: {claim.fraud_score}</Text>
                 </View>
               </View>
               {claim.fraud_flags && claim.fraud_flags.length > 0 && (
@@ -177,10 +183,8 @@ export default function AdminDashboardScreen({ navigation }: any) {
                 </View>
               )}
               <View style={styles.claimDetails}>
-                <Text style={styles.claimAmount}>₹{claim.payout_amount}</Text>
-                <Text style={styles.claimDate}>
-                  {new Date(claim.created_at).toLocaleString()}
-                </Text>
+                <Text style={styles.claimAmount}>INR {claim.payout_amount}</Text>
+                <Text style={styles.claimDate}>{new Date(claim.created_at).toLocaleString()}</Text>
               </View>
               <View style={styles.claimActions}>
                 <TouchableOpacity
@@ -199,28 +203,27 @@ export default function AdminDashboardScreen({ navigation }: any) {
             </View>
           ))
         ) : (
-          <Text style={styles.noPendingText}>🎉 No pending claims - All clear!</Text>
+          <Text style={styles.noPendingText}>No pending claims. All clear.</Text>
         )}
       </View>
 
-      {/* Quick Actions */}
       <View style={styles.quickActions}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.actionGrid}>
           <TouchableOpacity style={styles.actionTile}>
-            <Text style={styles.actionTileIcon}>📊</Text>
+            <Text style={styles.actionTileIcon}>FR</Text>
             <Text style={styles.actionTileText}>Financial Report</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionTile}>
-            <Text style={styles.actionTileIcon}>👥</Text>
+            <Text style={styles.actionTileIcon}>WK</Text>
             <Text style={styles.actionTileText}>Workers</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionTile}>
-            <Text style={styles.actionTileIcon}>⚡</Text>
+            <Text style={styles.actionTileIcon}>SM</Text>
             <Text style={styles.actionTileText}>Simulate</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionTile}>
-            <Text style={styles.actionTileIcon}>🗺️</Text>
+            <Text style={styles.actionTileIcon}>ZN</Text>
             <Text style={styles.actionTileText}>Zones</Text>
           </TouchableOpacity>
         </View>
@@ -243,10 +246,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#1a1a2e',
+    padding: 24,
   },
   loadingText: {
     color: '#a0a0a0',
     marginTop: 16,
+    textAlign: 'center',
+  },
+  errorTitle: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  errorText: {
+    color: '#a0a0a0',
+    fontSize: 14,
+    marginTop: 12,
+    textAlign: 'center',
+    maxWidth: 320,
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#e94560',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
   },
   header: {
     padding: 20,
@@ -447,7 +476,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionTileIcon: {
-    fontSize: 32,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
     marginBottom: 8,
   },
   actionTileText: {

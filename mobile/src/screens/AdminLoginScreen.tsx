@@ -77,11 +77,8 @@ export default function AdminLoginScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Text style={styles.backButtonText}>← Back to Home</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Home')}>
+          <Text style={styles.backButtonText}>{'< Back to Home'}</Text>
         </TouchableOpacity>
 
         <View style={styles.hintContainer}>

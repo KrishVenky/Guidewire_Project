@@ -5,7 +5,7 @@ Or inside Docker: docker exec -it guidewire_project-server-1 python scripts/seed
 """
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "server")))
 
 import random
 import math
@@ -15,10 +15,10 @@ from faker import Faker
 fake = Faker("en_IN")
 
 def run():
-    from server.database import SessionLocal, create_tables
-    from server.seeds.zones import seed_zones
-    from server.models.worker import Worker, Platform, TrustTier
-    from server.models.policy import Policy, PolicyStatus
+    from database import SessionLocal, create_tables
+    from seeds.zones import seed_zones
+    from models.worker import Worker, Platform, TrustTier
+    from models.policy import Policy, PolicyStatus
     from datetime import date
 
     create_tables()
@@ -64,7 +64,7 @@ def run():
         print(f"  {workers_created} workers seeded")
 
         print("Seeding active policies for workers without one...")
-        from server.services.premium_calculator import calculate
+        from services.premium_calculator import calculate
         workers_all = db.query(Worker).all()
         policies_created = 0
 

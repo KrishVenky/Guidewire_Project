@@ -160,8 +160,8 @@ Guidewire_Project/
 │   └── Dockerfile
 │
 ├── postman/                          # API test suite
-│   ├── RainReady_Phase2.postman_collection.json   # Full Phase 2 endpoint coverage
-│   └── RainReady.postman_environment.json         # Environment (base_url, auto-captured IDs)
+│   ├── Hermetical_Phase2.postman_collection.json   # Full Phase 2 endpoint coverage
+│   └── Hermetical.postman_environment.json         # Environment (base_url, auto-captured IDs)
 │
 └── scripts/
     └── seed_historical_data.py       # Standalone seeder (can run outside Docker)
@@ -695,7 +695,7 @@ Copy `.env.example` to `.env`:
 MOCK_MODE=true
 
 # Database (local docker default)
-DATABASE_URL=postgresql://rainready:rainready@localhost:5432/rainready
+DATABASE_URL=postgresql://hermetical:hermetical@localhost:5432/hermetical
 
 # Redis (for Phase 3 Celery migration — also used for API response caching in Phase 2)
 REDIS_URL=redis://localhost:6379/0
@@ -791,13 +791,13 @@ pytest tests/ -v
 ### Postman API Test Suite
 Located in `postman/`. Import both files into Postman:
 
-1. **`RainReady_Phase2.postman_collection.json`** — Full Phase 2 endpoint coverage
+1. **`Hermetical_Phase2.postman_collection.json`** — Full Phase 2 endpoint coverage
    - Organized into folders: Health, Worker Registration, Policy Management, Claims, Disruptions, Admin, LLM
    - Auto-captures `worker_id`, `policy_id`, `claim_id`, `zone_id` from responses into environment variables
    - Each request includes `pm.test()` assertions on status codes, response schema, and business logic
    - Run via Collection Runner in sequence for full happy path + simulation pipeline
 
-2. **`RainReady.postman_environment.json`** — Pre-configured environment
+2. **`Hermetical.postman_environment.json`** — Pre-configured environment
    - `base_url`: `http://localhost:8000`
    - All IDs initially empty — populated automatically by test scripts during run
    - `koramangala_zone_id`: seeded value (update after first seed run)
@@ -887,7 +887,7 @@ Components to build in Phase 3, on top of Phase 2:
 - Trust Tier badge + payout speed indicator
 
 ### Postman Phase 3 Collection
-Add to `postman/RainReady_Phase3.postman_collection.json`:
+Add to `postman/Hermetical_Phase3.postman_collection.json`:
 - Forecast Shield opt-in + FCM push verification
 - Solidarity Pool activation (simulate ≥30% zone workers affected)
 - Income Smoothing toggle + premium auto-cover flow

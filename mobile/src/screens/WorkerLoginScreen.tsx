@@ -125,24 +125,18 @@ export default function WorkerLoginScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.submitButtonText}>Verify & Login</Text>
+                <Text style={styles.submitButtonText}>Verify and Login</Text>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.resendButton}
-              onPress={() => setStep('phone')}
-            >
+            <TouchableOpacity style={styles.resendButton} onPress={() => setStep('phone')}>
               <Text style={styles.resendButtonText}>Change Phone Number</Text>
             </TouchableOpacity>
           </>
         )}
 
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Text style={styles.backButtonText}>← Back to Home</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Home')}>
+          <Text style={styles.backButtonText}>{'< Back to Home'}</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

@@ -10,7 +10,7 @@ api.interceptors.request.use((config) => {
     let raw = localStorage.getItem('hermetical-store')
     if (!raw) {
       // Backward compatibility for users with previous persisted key.
-      raw = localStorage.getItem('rainready-store')
+      raw = localStorage.getItem('hermetical-store')
       if (raw) localStorage.setItem('hermetical-store', raw)
     }
     if (raw) {

@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +24,9 @@ export default function WorkerRegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [zonesLoading, setZonesLoading] = useState(true);
   const [zones, setZones] = useState<ZoneOption[]>([]);
+  const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(
+    null
+  );
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
@@ -46,8 +48,14 @@ export default function WorkerRegisterScreen() {
             zone_id: current.zone_id || zoneOptions[0].id,
           }));
         }
-      } catch (error) {
-        Alert.alert('Error', 'Could not load Bengaluru zones. Please try again.');
+        setFeedback(null);
+      } catch (error: any) {
+        setFeedback({
+          type: 'error',
+          message:
+            error.response?.data?.detail ||
+            'Could not load Bengaluru zones. Make sure the backend is running, then try again.',
+        });
       } finally {
         setZonesLoading(false);
       }
@@ -57,13 +65,15 @@ export default function WorkerRegisterScreen() {
   }, []);
 
   const handleRegister = async () => {
+    setFeedback(null);
+
     if (!formData.full_name || !formData.phone || !formData.upi_id || !formData.zone_id) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      setFeedback({ type: 'error', message: 'Please fill in all required fields.' });
       return;
     }
 
     if (formData.phone.length !== 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      setFeedback({ type: 'error', message: 'Please enter a valid 10-digit phone number.' });
       return;
     }
 
@@ -80,14 +90,18 @@ export default function WorkerRegisterScreen() {
         declared_weekly_hours: parseInt(formData.declared_weekly_hours, 10) || 48,
       });
 
-      Alert.alert('Success', 'Registration successful! Please login.', [
-        { text: 'OK', onPress: () => navigation.navigate('WorkerLogin') },
-      ]);
+      setFeedback({
+        type: 'success',
+        message: 'Registration successful. You can log in now.',
+      });
+      navigation.navigate('WorkerLogin');
     } catch (error: any) {
-      Alert.alert(
-        'Registration Failed',
-        error.response?.data?.detail || 'Please try again'
-      );
+      setFeedback({
+        type: 'error',
+        message:
+          error.response?.data?.detail ||
+          'Registration failed. Make sure the backend is running and try again.',
+      });
     } finally {
       setLoading(false);
     }
@@ -101,6 +115,17 @@ export default function WorkerRegisterScreen() {
       </View>
 
       <View style={styles.form}>
+        {feedback ? (
+          <View
+            style={[
+              styles.feedbackBanner,
+              feedback.type === 'error' ? styles.feedbackError : styles.feedbackSuccess,
+            ]}
+          >
+            <Text style={styles.feedbackText}>{feedback.message}</Text>
+          </View>
+        ) : null}
+
         <Text style={styles.label}>Full Name *</Text>
         <TextInput
           style={styles.input}
@@ -154,10 +179,10 @@ export default function WorkerRegisterScreen() {
           ))}
         </View>
 
-        <Text style={styles.label}>Primary Zone</Text>
+        <Text style={styles.label}>Primary Zone *</Text>
         {zonesLoading ? (
           <ActivityIndicator color="#e94560" style={styles.zoneLoader} />
-        ) : (
+        ) : zones.length > 0 ? (
           <View style={styles.zoneSelector}>
             {zones.map((zone) => (
               <TouchableOpacity
@@ -172,6 +197,39 @@ export default function WorkerRegisterScreen() {
                 <Text style={styles.zoneCityText}>{zone.city}</Text>
               </TouchableOpacity>
             ))}
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>No zones available yet.</Text>
+            <TouchableOpacity
+              style={styles.retryZonesButton}
+              onPress={() => {
+                setZonesLoading(true);
+                setFeedback(null);
+                workerAPI
+                  .getZones()
+                  .then((zoneOptions) => {
+                    setZones(zoneOptions);
+                    if (zoneOptions.length > 0) {
+                      setFormData((current) => ({
+                        ...current,
+                        zone_id: current.zone_id || zoneOptions[0].id,
+                      }));
+                    }
+                  })
+                  .catch((error: any) => {
+                    setFeedback({
+                      type: 'error',
+                      message:
+                        error.response?.data?.detail ||
+                        'Still unable to load zones. Check the backend and try again.',
+                    });
+                  })
+                  .finally(() => setZonesLoading(false));
+              }}
+            >
+              <Text style={styles.retryZonesText}>Retry loading zones</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -196,7 +254,7 @@ export default function WorkerRegisterScreen() {
         />
 
         <TouchableOpacity
-          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (loading || zonesLoading) && styles.submitButtonDisabled]}
           onPress={handleRegister}
           disabled={loading || zonesLoading}
         >
@@ -207,10 +265,7 @@ export default function WorkerRegisterScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.loginLink}
-          onPress={() => navigation.navigate('WorkerLogin')}
-        >
+        <TouchableOpacity style={styles.loginLink} onPress={() => navigation.navigate('WorkerLogin')}>
           <Text style={styles.loginLinkText}>
             Already have an account? <Text style={styles.loginLinkBold}>Login</Text>
           </Text>
@@ -241,6 +296,25 @@ const styles = StyleSheet.create({
   },
   form: {
     padding: 20,
+  },
+  feedbackBanner: {
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  feedbackError: {
+    backgroundColor: '#3b1218',
+    borderColor: '#e94560',
+  },
+  feedbackSuccess: {
+    backgroundColor: '#123126',
+    borderColor: '#4ade80',
+  },
+  feedbackText: {
+    color: '#ffffff',
+    fontSize: 14,
+    lineHeight: 20,
   },
   label: {
     color: '#ffffff',
@@ -311,6 +385,27 @@ const styles = StyleSheet.create({
     color: '#a0a0a0',
     fontSize: 12,
     marginTop: 4,
+  },
+  emptyState: {
+    marginTop: 8,
+    padding: 16,
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#0f3460',
+  },
+  emptyStateText: {
+    color: '#a0a0a0',
+    fontSize: 14,
+  },
+  retryZonesButton: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  retryZonesText: {
+    color: '#e94560',
+    fontSize: 14,
+    fontWeight: '600',
   },
   submitButton: {
     backgroundColor: '#e94560',

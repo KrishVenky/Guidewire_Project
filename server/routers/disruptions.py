@@ -6,7 +6,7 @@ from uuid import UUID
 from typing import List
 
 from database import get_db
-from models.disruption_event import DisruptionEvent, EventSource, PayoutTier
+from models.disruption_event import DisruptionEvent, EventSource, PayoutTier, EventType
 from models.zone import Zone
 from schemas.disruption import (
     SimulateDisruptionRequest, BandhToggleRequest,
@@ -163,5 +163,17 @@ def toggle_bandh(body: BandhToggleRequest, db: Session = Depends(get_db), _: Aut
     zone = db.query(Zone).filter(Zone.id == body.zone_id).first()
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
+    
     set_bandh(str(body.zone_id), body.active)
+    
+    if not body.active:
+        active_events = db.query(DisruptionEvent).filter(
+            DisruptionEvent.zone_id == zone.id,
+            DisruptionEvent.event_type == EventType.BANDH,
+            DisruptionEvent.ended_at == None
+        ).all()
+        for event in active_events:
+            event.ended_at = datetime.now(timezone.utc)
+        db.commit()
+    
     return {"zone_id": str(body.zone_id), "zone_name": zone.name, "bandh_active": body.active}

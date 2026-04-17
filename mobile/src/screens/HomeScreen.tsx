@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
@@ -25,9 +25,8 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.logoContainer}>
-        {/* Placeholder for logo - replace with actual image */}
         <View style={styles.logoPlaceholder}>
-          <Text style={styles.logoText}>🛡️</Text>
+          <Text style={styles.logoText}>H</Text>
         </View>
       </View>
 
@@ -98,7 +97,9 @@ const styles = StyleSheet.create({
     borderColor: '#0f3460',
   },
   logoText: {
-    fontSize: 60,
+    fontSize: 52,
+    fontWeight: '700',
+    color: '#ffffff',
   },
   buttonContainer: {
     gap: 16,
