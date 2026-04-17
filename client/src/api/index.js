@@ -16,8 +16,13 @@ api.interceptors.request.use((config) => {
     if (raw) {
       const parsed = JSON.parse(raw)
       const state = parsed?.state || {}
-      // Prefer admin token to avoid 403s when both worker and admin sessions exist.
-      const token = state.adminToken || state.workerToken
+      
+      let token = state.adminToken || state.workerToken
+      // Force admin token for admin-only routes to prevent accidental 403s
+      if (config.url.startsWith('/admin') || config.url.includes('/bandh/toggle') || config.url.includes('/simulate')) {
+        token = state.adminToken
+      }
+
       if (token) {
         config.headers = config.headers || {}
         config.headers.Authorization = `Bearer ${token}`

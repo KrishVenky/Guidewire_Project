@@ -71,9 +71,19 @@ export default function AdminDashboard() {
   }, [isAdmin])
 
   const loadAll = async () => {
-    const [d, p, f, t, z, s, w, pr] = await Promise.allSettled([
+    const results = await Promise.allSettled([
       getAdminDashboard(), getPendingClaims(), getFinancialSummary(), getZoneTrustScores(), getZones(), getTriggerSources(), getAllWorkers(), getPredictiveClaims()
     ])
+    
+    // If any core request fails with 401/403, the admin token is invalid or expired
+    const isUnauthorized = results.some(r => r.status === 'rejected' && [401, 403].includes(r.reason?.response?.status))
+    if (isUnauthorized) {
+      logout()
+      navigate('/')
+      return
+    }
+
+    const [d, p, f, t, z, s, w, pr] = results
     if (d.status === 'fulfilled') setDashboard(d.value.data)
     if (p.status === 'fulfilled') setPendingClaims(p.value.data)
     if (f.status === 'fulfilled') setFinancial(f.value.data)

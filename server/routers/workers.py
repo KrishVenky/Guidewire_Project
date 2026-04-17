@@ -66,6 +66,7 @@ def register_worker(body: WorkerCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Phone number already registered")
 
     worker = Worker(**body.model_dump())
+    worker.kyc_verified = True
     db.add(worker)
     db.commit()
     db.refresh(worker)
@@ -171,6 +172,7 @@ def get_dashboard(worker_id: UUID, db: Session = Depends(get_db), principal: Aut
         recent_claims=[
             {
                 "id": str(c.id),
+                "disruption_event_id": str(c.disruption_event_id) if c.disruption_event_id else None,
                 "status": c.status.value,
                 "payout_amount": c.payout_amount,
                 "duration_hours": c.duration_hours,
