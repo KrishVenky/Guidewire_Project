@@ -66,6 +66,9 @@ def create_policy(
     worker = db.query(Worker).filter(Worker.id == body.worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
+        
+    if not worker.kyc_verified:
+        raise HTTPException(status_code=403, detail="Worker must complete KYC verification before activating coverage")
 
     existing_active = db.query(Policy).filter(
         Policy.worker_id == body.worker_id,
