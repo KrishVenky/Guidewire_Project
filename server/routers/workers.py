@@ -133,6 +133,7 @@ def get_dashboard(worker_id: UUID, db: Session = Depends(get_db), principal: Aut
         db.query(DisruptionEvent)
         .filter(
             DisruptionEvent.zone_id == worker.zone_id,
+            DisruptionEvent.dual_trigger_fired == True,
             DisruptionEvent.ended_at == None,
         )
         .order_by(DisruptionEvent.started_at.desc())
@@ -161,6 +162,11 @@ def get_dashboard(worker_id: UUID, db: Session = Depends(get_db), principal: Aut
 
     return WorkerDashboard(
         worker=worker,
+        operating_area={
+            "zone_id": str(worker.zone.id),
+            "zone_name": worker.zone.name,
+            "city": worker.zone.city,
+        } if worker.zone else None,
         active_policy=policy_dict,
         recent_claims=[
             {
@@ -168,6 +174,7 @@ def get_dashboard(worker_id: UUID, db: Session = Depends(get_db), principal: Aut
                 "status": c.status.value,
                 "payout_amount": c.payout_amount,
                 "duration_hours": c.duration_hours,
+                "auto_initiated": c.auto_initiated,
                 "event_started_at": c.event_started_at.isoformat() if c.event_started_at else None,
                 "event_ended_at": c.event_ended_at.isoformat() if c.event_ended_at else None,
                 "llm_explanation": c.llm_explanation,

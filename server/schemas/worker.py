@@ -56,6 +56,7 @@ class WorkerResponse(BaseModel):
 
 class WorkerDashboard(BaseModel):
     worker: WorkerResponse
+    operating_area: Optional[dict] = None
     active_policy: Optional[dict] = None
     recent_claims: list = []
     active_disruptions: list = []

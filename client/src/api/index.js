@@ -61,6 +61,7 @@ export const updatePolicy = (id, data) => api.put(`/policies/${id}`, data)
 // Claims
 export const getWorkerClaims = (workerId) => api.get(`/claims/worker/${workerId}`)
 export const getClaim = (id) => api.get(`/claims/${id}`)
+export const fileClaim = (data) => api.post('/claims/file', data)
 export const getClaimTimeline = (id) => api.get(`/claims/${id}/timeline`)
 export const getClaimEvidenceReceipt = (id) => api.get(`/claims/${id}/evidence-receipt`)
 export const reviewClaim = (id, data) => api.post(`/claims/${id}/review`, data)

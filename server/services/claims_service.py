@@ -1,10 +1,8 @@
 """
 End-to-end claims pipeline:
-DisruptionEvent → fraud check → Claim → Payout → LLM explanation
+DisruptionEvent -> fraud check -> Claim -> Payout -> LLM explanation
 """
-import asyncio
 from datetime import datetime, timedelta
-from uuid import UUID
 from sqlalchemy.orm import Session
 
 from models.claim import Claim, ClaimStatus
@@ -15,6 +13,171 @@ from integrations import open_meteo
 from services import fraud_detector, premium_calculator, payout_service, llm_service
 from services.evidence_service import build_claim_evidence_receipt
 from ml import fraud_model
+
+
+async def create_claim_for_worker_event(
+    *,
+    event: DisruptionEvent,
+    worker: Worker,
+    active_policy: Policy,
+    db: Session,
+    zone_avg_income: float,
+    zone_name: str,
+    auto_initiated: bool,
+) -> Claim:
+    existing = (
+        db.query(Claim)
+        .filter(Claim.worker_id == worker.id, Claim.disruption_event_id == event.id)
+        .first()
+    )
+    if existing:
+        raise ValueError("DUPLICATE_CLAIM")
+
+    week_ago = datetime.utcnow() - timedelta(days=7)
+    recent_claims = (
+        db.query(Claim)
+        .filter(Claim.worker_id == worker.id, Claim.created_at >= week_ago)
+        .count()
+    )
+
+    previous_claim = (
+        db.query(Claim)
+        .filter(Claim.worker_id == worker.id)
+        .order_by(Claim.created_at.desc())
+        .first()
+    )
+    days_since_last_claim = 30.0
+    if previous_claim and previous_claim.created_at:
+        days_since_last_claim = max(
+            0.0,
+            (datetime.utcnow() - previous_claim.created_at.replace(tzinfo=None)).total_seconds() / 86400,
+        )
+
+    claim_hour = event.started_at.hour if event.started_at else datetime.utcnow().hour
+    income_ratio = (worker.avg_weekly_income / zone_avg_income) if zone_avg_income > 0 else 1.0
+    isolation_score = fraud_model.score(
+        claim_hour=claim_hour,
+        days_since_last_claim=days_since_last_claim,
+        income_ratio=income_ratio,
+        order_drop_pct=event.order_drop_pct or 0.0,
+    )
+
+    weather_validation = None
+    zone = worker.zone
+    if zone and event.event_type.value in {"HEAVY_RAIN", "EXTREME_HEAT"}:
+      weather_validation = await open_meteo.validate_event_with_history(
+            lat=zone.open_meteo_lat,
+            lng=zone.open_meteo_lng,
+            event_type=event.event_type.value,
+            observed_value=event.raw_value or 0.0,
+            event_time=event.started_at,
+        )
+
+    weather_inconsistency = bool(weather_validation and not weather_validation.consistent)
+    event_source_untrusted = event.source.value not in {
+        "OPEN_METEO", "WAQI", "SACHET", "ORDER_PROXY", "BANDH_MOCK", "SIMULATION"
+    }
+
+    fraud_result = fraud_detector.evaluate(
+        worker_zone_id=str(worker.zone_id),
+        event_zone_id=str(event.zone_id),
+        worker_active_during_event=False,
+        claims_last_7_days=recent_claims,
+        hours_since_event_ended=0.0,
+        worker_income=worker.avg_weekly_income,
+        zone_avg_income=zone_avg_income,
+        existing_claim_for_event=False,
+        is_honeypot=event.is_honeypot,
+        isolation_forest_score=isolation_score,
+        worker_trust_tier=worker.trust_tier.value,
+        weather_inconsistency=weather_inconsistency,
+        gps_impossible_jump=False,
+        event_source_untrusted=event_source_untrusted,
+    )
+
+    from datetime import timezone
+
+    event_start = event.started_at
+    event_end = event.ended_at or datetime.utcnow().replace(tzinfo=timezone.utc)
+    if event_start.tzinfo is None:
+        event_start = event_start.replace(tzinfo=timezone.utc)
+    disruption_hours = max(1.0, (event_end - event_start).total_seconds() / 3600)
+
+    payout_amount = premium_calculator.compute_payout(
+        payout_tier=event.payout_tier.value,
+        claimed_hours=disruption_hours,
+        avg_weekly_income=worker.avg_weekly_income,
+        declared_weekly_hours=worker.declared_weekly_hours,
+        coverage_amount=active_policy.coverage_amount,
+    )
+
+    status = ClaimStatus.MANUAL_REVIEW if fraud_result.flagged else ClaimStatus.AUTO_APPROVED
+    reason_code = fraud_result.flags[0] if fraud_result.flagged and fraud_result.flags else "AUTO_CLEAN"
+
+    claim = Claim(
+        worker_id=worker.id,
+        policy_id=active_policy.id,
+        disruption_event_id=event.id,
+        status=status,
+        event_started_at=event_start,
+        event_ended_at=event_end,
+        duration_hours=round(disruption_hours, 2),
+        claimed_hours_lost=disruption_hours,
+        estimated_income_lost=round(
+            (worker.avg_weekly_income / max(worker.declared_weekly_hours, 1)) * disruption_hours,
+            2,
+        ),
+        payout_amount=payout_amount,
+        fraud_score=fraud_result.score,
+        fraud_flags=fraud_result.flags,
+        auto_initiated=auto_initiated,
+        decision_reason_code=reason_code,
+        worker_zone_at_event_start=worker.zone_id,
+    )
+    db.add(claim)
+    db.flush()
+
+    evidence_payload, evidence_hash = build_claim_evidence_receipt(
+        claim_id=str(claim.id),
+        worker_id=str(worker.id),
+        policy_id=str(active_policy.id),
+        event_id=str(event.id),
+        event_type=event.event_type.value,
+        event_source=event.source.value,
+        raw_value=float(event.raw_value or 0.0),
+        threshold_breached=float(event.threshold_breached or 0.0),
+        order_drop_pct=float(event.order_drop_pct or 0.0),
+        payout_tier=event.payout_tier.value,
+        claimed_hours=disruption_hours,
+        avg_weekly_income=float(worker.avg_weekly_income or 0.0),
+        declared_weekly_hours=int(worker.declared_weekly_hours or 0),
+        coverage_amount=float(active_policy.coverage_amount or 0.0),
+        payout_amount=float(payout_amount),
+        fraud_score=float(fraud_result.score),
+        fraud_flags=list(fraud_result.flags or []),
+        decision_reason_code=reason_code,
+    )
+    claim.evidence_payload = evidence_payload
+    claim.evidence_receipt_hash = evidence_hash
+
+    explanation, _ = await llm_service.generate_claim_explanation(
+        status=status.value,
+        zone_name=zone_name,
+        event_type=event.event_type.value,
+        payout_amount=payout_amount,
+        upi_id=worker.upi_id,
+    )
+    claim.llm_explanation = explanation
+
+    if not fraud_result.flagged and payout_amount > 0:
+        db.commit()
+        db.refresh(claim)
+        payout_service.process_payout(claim, worker, db)
+    else:
+        db.commit()
+        db.refresh(claim)
+
+    return claim
 
 
 async def process_disruption_event(
@@ -29,27 +192,11 @@ async def process_disruption_event(
     claims_created = 0
     skipped = 0
 
-    # Capture zone_name before any commits detach relationships
     from models.zone import Zone
+
     zone = db.query(Zone).filter(Zone.id == event.zone_id).first()
     zone_name = zone.name if zone else "your zone"
 
-    weather_validation = None
-    if zone and event.event_type.value in {"HEAVY_RAIN", "EXTREME_HEAT"}:
-        weather_validation = await open_meteo.validate_event_with_history(
-            lat=zone.open_meteo_lat,
-            lng=zone.open_meteo_lng,
-            event_type=event.event_type.value,
-            observed_value=event.raw_value or 0.0,
-            event_time=event.started_at,
-        )
-
-    weather_inconsistency = bool(weather_validation and not weather_validation.consistent)
-    event_source_untrusted = event.source.value not in {
-        "OPEN_METEO", "WAQI", "SACHET", "ORDER_PROXY", "BANDH_MOCK", "SIMULATION"
-    }
-
-    # Get all active policies in this zone
     workers_in_zone = (
         db.query(Worker)
         .filter(Worker.zone_id == event.zone_id, Worker.is_active == True)
@@ -60,15 +207,19 @@ async def process_disruption_event(
     if workers_in_zone:
         zone_avg_income = sum(w.avg_weekly_income for w in workers_in_zone) / len(workers_in_zone)
 
-    # Filing window: skip if event ended more than 6 hours ago
     from datetime import timezone as tz
+
     if event.ended_at:
         event_end_utc = event.ended_at
         if event_end_utc.tzinfo is None:
             event_end_utc = event_end_utc.replace(tzinfo=tz.utc)
         hours_since_end = (datetime.utcnow().replace(tzinfo=tz.utc) - event_end_utc).total_seconds() / 3600
         if hours_since_end > 6:
-            return {"claims_created": 0, "skipped_workers": len(workers_in_zone), "skip_reason": "FILING_WINDOW_EXPIRED"}
+            return {
+                "claims_created": 0,
+                "skipped_workers": len(workers_in_zone),
+                "skip_reason": "FILING_WINDOW_EXPIRED",
+            }
 
     for worker in workers_in_zone:
         active_policy = (
@@ -80,147 +231,19 @@ async def process_disruption_event(
             skipped += 1
             continue
 
-        # Check for duplicate claim on this event
-        existing = (
-            db.query(Claim)
-            .filter(Claim.worker_id == worker.id, Claim.disruption_event_id == event.id)
-            .first()
-        )
-
-        # Recent claims count
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        recent_claims = (
-            db.query(Claim)
-            .filter(Claim.worker_id == worker.id, Claim.created_at >= week_ago)
-            .count()
-        )
-
-        previous_claim = (
-            db.query(Claim)
-            .filter(Claim.worker_id == worker.id)
-            .order_by(Claim.created_at.desc())
-            .first()
-        )
-        days_since_last_claim = 30.0
-        if previous_claim and previous_claim.created_at:
-            days_since_last_claim = max(
-                0.0,
-                (datetime.utcnow() - previous_claim.created_at.replace(tzinfo=None)).total_seconds() / 86400,
+        try:
+            await create_claim_for_worker_event(
+                event=event,
+                worker=worker,
+                active_policy=active_policy,
+                db=db,
+                zone_avg_income=zone_avg_income,
+                zone_name=zone_name,
+                auto_initiated=True,
             )
-
-        claim_hour = (event.started_at.hour if event.started_at else datetime.utcnow().hour)
-        income_ratio = (worker.avg_weekly_income / zone_avg_income) if zone_avg_income > 0 else 1.0
-        isolation_score = fraud_model.score(
-            claim_hour=claim_hour,
-            days_since_last_claim=days_since_last_claim,
-            income_ratio=income_ratio,
-            order_drop_pct=event.order_drop_pct or 0.0,
-        )
-
-        fraud_result = fraud_detector.evaluate(
-            worker_zone_id=str(worker.zone_id),
-            event_zone_id=str(event.zone_id),
-            worker_active_during_event=False,  # Phase 3: real GPS validation
-            claims_last_7_days=recent_claims,
-            hours_since_event_ended=0.0,
-            worker_income=worker.avg_weekly_income,
-            zone_avg_income=zone_avg_income,
-            existing_claim_for_event=existing is not None,
-            is_honeypot=event.is_honeypot,
-            isolation_forest_score=isolation_score,
-            worker_trust_tier=worker.trust_tier.value,
-            weather_inconsistency=weather_inconsistency,
-            gps_impossible_jump=False,
-            event_source_untrusted=event_source_untrusted,
-        )
-
-        # Compute disruption duration from event window
-        from datetime import timezone
-        event_start = event.started_at
-        event_end = event.ended_at or datetime.utcnow().replace(tzinfo=timezone.utc)
-        if event_start.tzinfo is None:
-            event_start = event_start.replace(tzinfo=timezone.utc)
-        disruption_hours = max(1.0, (event_end - event_start).total_seconds() / 3600)
-        payout_amount = premium_calculator.compute_payout(
-            payout_tier=event.payout_tier.value,
-            claimed_hours=disruption_hours,
-            avg_weekly_income=worker.avg_weekly_income,
-            declared_weekly_hours=worker.declared_weekly_hours,
-            coverage_amount=active_policy.coverage_amount,
-        )
-
-        status = ClaimStatus.MANUAL_REVIEW if fraud_result.flagged else ClaimStatus.AUTO_APPROVED
-
-        # Decision reason code
-        if fraud_result.flagged and fraud_result.flags:
-            reason_code = fraud_result.flags[0]
-        else:
-            reason_code = "AUTO_CLEAN"
-
-        claim = Claim(
-            worker_id=worker.id,
-            policy_id=active_policy.id,
-            disruption_event_id=event.id,
-            status=status,
-            event_started_at=event_start,
-            event_ended_at=event_end,
-            duration_hours=round(disruption_hours, 2),
-            claimed_hours_lost=disruption_hours,
-            estimated_income_lost=round(
-                (worker.avg_weekly_income / max(worker.declared_weekly_hours, 1)) * disruption_hours, 2
-            ),
-            payout_amount=payout_amount,
-            fraud_score=fraud_result.score,
-            fraud_flags=fraud_result.flags,
-            auto_initiated=True,
-            decision_reason_code=reason_code,
-            worker_zone_at_event_start=worker.zone_id,
-        )
-        db.add(claim)
-        db.flush()
-
-        evidence_payload, evidence_hash = build_claim_evidence_receipt(
-            claim_id=str(claim.id),
-            worker_id=str(worker.id),
-            policy_id=str(active_policy.id),
-            event_id=str(event.id),
-            event_type=event.event_type.value,
-            event_source=event.source.value,
-            raw_value=float(event.raw_value or 0.0),
-            threshold_breached=float(event.threshold_breached or 0.0),
-            order_drop_pct=float(event.order_drop_pct or 0.0),
-            payout_tier=event.payout_tier.value,
-            claimed_hours=disruption_hours,
-            avg_weekly_income=float(worker.avg_weekly_income or 0.0),
-            declared_weekly_hours=int(worker.declared_weekly_hours or 0),
-            coverage_amount=float(active_policy.coverage_amount or 0.0),
-            payout_amount=float(payout_amount),
-            fraud_score=float(fraud_result.score),
-            fraud_flags=list(fraud_result.flags or []),
-            decision_reason_code=reason_code,
-        )
-        claim.evidence_payload = evidence_payload
-        claim.evidence_receipt_hash = evidence_hash
-
-        # Generate LLM explanation
-        explanation, _ = await llm_service.generate_claim_explanation(
-            status=status.value,
-            zone_name=zone_name,
-            event_type=event.event_type.value,
-            payout_amount=payout_amount,
-            upi_id=worker.upi_id,
-        )
-        claim.llm_explanation = explanation
-
-        # Initiate payout if clean
-        if not fraud_result.flagged and payout_amount > 0:
-            db.commit()
-            db.refresh(claim)
-            payout_service.process_payout(claim, worker, db)
-        else:
-            db.commit()
-
-        claims_created += 1
+            claims_created += 1
+        except ValueError:
+            skipped += 1
 
     event.affected_worker_count = claims_created
     db.commit()

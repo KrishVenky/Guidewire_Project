@@ -10,10 +10,15 @@ class ClaimReviewRequest(BaseModel):
     reviewer_note: Optional[str] = None
 
 
+class ClaimFileRequest(BaseModel):
+    worker_id: UUID
+    disruption_event_id: UUID
+
+
 class TrustSurveyRequest(BaseModel):
     understood_reason: bool
     payout_correct: bool
-    trust_score: int  # 1–5
+    trust_score: int  # 1-5
 
 
 class ClaimResponse(BaseModel):
