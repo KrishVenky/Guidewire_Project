@@ -4,7 +4,7 @@ from sqlalchemy import func
 from typing import List
 import asyncio
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from database import get_db
 from models.worker import Worker
@@ -48,9 +48,8 @@ def admin_dashboard(db: Session = Depends(get_db)):
         Payout.status == PayoutStatus.COMPLETED,
     ).scalar() or 0.0
 
-    premiums_collected = db.query(func.sum(Policy.weekly_premium)).filter(
+    premiums_collected = db.query(func.sum(Policy.total_premiums_paid)).filter(
         Policy.status == PolicyStatus.ACTIVE,
-        Policy.current_week_start >= week_ago.date(),
     ).scalar() or 0.0
 
     loss_ratio = (payouts_this_week / premiums_collected) if premiums_collected > 0 else 0.0
@@ -107,7 +106,7 @@ async def predictive_claims(db: Session = Depends(get_db)):
     total_exposure = round(sum(r["projected_payout_exposure"] for r in rows), 2)
 
     return {
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "horizon_days": 7,
         "total_projected_claims": total_projected_claims,
         "total_projected_exposure": total_exposure,

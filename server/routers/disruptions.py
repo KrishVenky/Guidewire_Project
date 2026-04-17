@@ -170,7 +170,7 @@ def toggle_bandh(body: BandhToggleRequest, db: Session = Depends(get_db), _: Aut
         active_events = db.query(DisruptionEvent).filter(
             DisruptionEvent.zone_id == zone.id,
             DisruptionEvent.event_type == EventType.BANDH,
-            DisruptionEvent.ended_at == None
+            DisruptionEvent.ended_at.is_(None)
         ).all()
         for event in active_events:
             event.ended_at = datetime.now(timezone.utc)

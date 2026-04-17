@@ -1,6 +1,6 @@
 import httpx
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from config import get_settings
 
@@ -99,7 +99,7 @@ async def validate_event_with_history(
     Returns a conservative "consistent=True" on API failure to avoid false fraud flags.
     """
     if event_time is None:
-        event_time = datetime.utcnow()
+        event_time = datetime.now(timezone.utc)
 
     # Mock mode cannot validate external weather provenance.
     if settings.mock_mode:
