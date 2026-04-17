@@ -89,8 +89,16 @@ export const workerAPI = {
 
 // Policy APIs
 export const policyAPI = {
-  create: async (workerId: string) => {
-    const res = await api.post('/api/policies/create', { worker_id: workerId });
+  create: async (workerId: string, termsAccepted = false, privacyAccepted = false) => {
+    const res = await api.post('/api/policies/create', {
+      worker_id: workerId,
+      terms_accepted: termsAccepted,
+      privacy_accepted: privacyAccepted,
+      terms_version: 'v1',
+      privacy_version: 'v1',
+      consent_text_hash: 'mobile-consent-v1',
+      consent_source: 'MOBILE_APP',
+    });
     return res.data;
   },
   getWorkerPolicies: async (workerId: string) => {
