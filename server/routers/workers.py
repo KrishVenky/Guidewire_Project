@@ -4,6 +4,7 @@ from uuid import UUID
 from datetime import datetime, timedelta, timezone
 
 from database import get_db
+from models.zone import Zone
 from models.worker import Worker, PrivacyRequestStatus
 from models.policy import Policy, PolicyStatus
 from models.claim import Claim, ClaimStatus
@@ -23,6 +24,19 @@ from auth import require_worker_or_admin, require_admin, AuthPrincipal
 from services.audit_service import log_event
 
 router = APIRouter(prefix="/api/workers", tags=["workers"])
+
+
+@router.get("/zones")
+def list_public_zones(db: Session = Depends(get_db)):
+    zones = db.query(Zone).order_by(Zone.name.asc()).all()
+    return [
+        {
+            "id": str(zone.id),
+            "name": zone.name,
+            "city": zone.city,
+        }
+        for zone in zones
+    ]
 
 
 @router.get("/lookup", response_model=WorkerResponse)

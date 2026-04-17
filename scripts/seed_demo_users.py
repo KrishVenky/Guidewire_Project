@@ -9,13 +9,13 @@ import sys
 import os
 from datetime import date, datetime, timezone
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "server")))
 
-from server.database import SessionLocal, create_tables
-from server.models.worker import Worker, Platform, TrustTier
-from server.models.policy import Policy, PolicyStatus
-from server.models.zone import Zone
-from server.services.premium_calculator import calculate
+from database import SessionLocal, create_tables
+from models.worker import Worker, Platform, TrustTier
+from models.policy import Policy, PolicyStatus
+from models.zone import Zone
+from services.premium_calculator import calculate
 
 USERS = [
     {"code": "U001", "name": "Aarav Clean", "phone": "9000000001", "zone": "Whitefield", "income": 3500, "hours": 48, "trust": TrustTier.NEW_PARTNER},

@@ -1,18 +1,16 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: rainready
-      POSTGRES_PASSWORD: rainready
-      POSTGRES_DB: rainready
+      POSTGRES_USER: hermetical
+      POSTGRES_PASSWORD: hermetical
+      POSTGRES_DB: hermetical
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rainready -d rainready"]
+      test: ["CMD-SHELL", "pg_isready -U hermetical -d hermetical"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -38,7 +36,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://rainready:rainready@postgres:5432/rainready
+      DATABASE_URL: postgresql://hermetical:hermetical@postgres:5432/hermetical
       REDIS_URL: redis://redis:6379/0
       MOCK_MODE: "true"
     depends_on:

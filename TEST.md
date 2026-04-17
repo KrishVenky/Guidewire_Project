@@ -121,7 +121,7 @@ Steps:
 
 Expected:
 - Admin dashboard loads
-- Admin tabs are visible (overview, workers, claims, simulate, zones, geo)
+- Admin tabs are visible (overview, workers, claims, simulate, zones)
 
 ### A2 - Invalid PIN
 Goal: invalid PIN is rejected.
@@ -237,7 +237,7 @@ Release readiness for auth is green only if all checklist items pass.
   - Check request-otp API response for debug_otp value
 
 - If routes are not redirecting correctly:
-  - Clear browser local storage for key rainready-store
+  - Clear browser local storage for key hermetical-store
   - Reload app
 
 ## 8. Phase 3 Validation Log (April 2026)

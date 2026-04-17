@@ -299,7 +299,16 @@ export default function WorkerDashboard() {
           )}
           <div className="space-y-3">
             {recent_claims?.map(claim => (
-              <div key={claim.id} className="border border-gray-100 rounded-lg p-3">
+              <div
+                key={claim.id}
+                className={`border border-gray-100 rounded-lg p-3 transition-all duration-300 ${
+                  claim.status === 'PAID'
+                    ? 'claim-paid'
+                    : claim.status === 'AUTO_APPROVED'
+                      ? 'claim-triggered'
+                      : ''
+                }`}
+              >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">

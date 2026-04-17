@@ -11,6 +11,7 @@ from models.claim import Claim, ClaimStatus
 from models.policy import Policy, PolicyStatus
 from models.disruption_event import DisruptionEvent
 from models.worker import Worker
+from integrations import open_meteo
 from services import fraud_detector, premium_calculator, payout_service, llm_service
 from services.evidence_service import build_claim_evidence_receipt
 from ml import fraud_model
@@ -32,6 +33,21 @@ async def process_disruption_event(
     from models.zone import Zone
     zone = db.query(Zone).filter(Zone.id == event.zone_id).first()
     zone_name = zone.name if zone else "your zone"
+
+    weather_validation = None
+    if zone and event.event_type.value in {"HEAVY_RAIN", "EXTREME_HEAT"}:
+        weather_validation = await open_meteo.validate_event_with_history(
+            lat=zone.open_meteo_lat,
+            lng=zone.open_meteo_lng,
+            event_type=event.event_type.value,
+            observed_value=event.raw_value or 0.0,
+            event_time=event.started_at,
+        )
+
+    weather_inconsistency = bool(weather_validation and not weather_validation.consistent)
+    event_source_untrusted = event.source.value not in {
+        "OPEN_METEO", "WAQI", "SACHET", "ORDER_PROXY", "BANDH_MOCK", "SIMULATION"
+    }
 
     # Get all active policies in this zone
     workers_in_zone = (
@@ -113,6 +129,9 @@ async def process_disruption_event(
             is_honeypot=event.is_honeypot,
             isolation_forest_score=isolation_score,
             worker_trust_tier=worker.trust_tier.value,
+            weather_inconsistency=weather_inconsistency,
+            gps_impossible_jump=False,
+            event_source_untrusted=event_source_untrusted,
         )
 
         # Compute disruption duration from event window

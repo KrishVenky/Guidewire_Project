@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     mock_mode: bool = True
 
     # Database
-    database_url: str = "postgresql://rainready:rainready@localhost:5432/rainready"
+    database_url: str = "postgresql://hermetical:hermetical@localhost:5432/hermetical"
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     admin_pin: str = "admin123"
     auth_debug_return_otp: bool = True
     debug: bool = True
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:5173,http://localhost:3000,http://localhost:8081,http://127.0.0.1:8081"
 
     class Config:
         env_file = "../.env"

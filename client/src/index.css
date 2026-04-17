@@ -17,3 +17,24 @@ body {
 h1, h2, h3, .display-font {
   font-family: 'Fraunces', Georgia, serif;
 }
+
+@keyframes triggerPulse {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.35); }
+  100% { box-shadow: 0 0 0 12px rgba(245, 158, 11, 0); }
+}
+
+@keyframes paidPop {
+  0% { transform: scale(0.98); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.claim-triggered {
+  border-color: #f59e0b;
+  animation: triggerPulse 1.2s ease-out 1;
+}
+
+.claim-paid {
+  border-color: #16a34a;
+  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
+  animation: paidPop 180ms ease-out 1;
+}

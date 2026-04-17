@@ -1,4 +1,4 @@
-# RainReady Phase 2 Gap Report + Demo Test Plan
+# Hermetical Phase 2 Gap Report + Demo Test Plan
 
 Date: 2026-04-04
 Scope reviewed:

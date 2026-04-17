@@ -262,7 +262,7 @@ The LLM **never** makes any financial decision. All decisions (trigger fired, pa
 
 ### Mock-First Runtime (for demos)
 
-RainReady now runs in **mock-first mode** by default (`MOCK_MODE=true`) so judge demos are deterministic and do not depend on live external APIs.
+Hermetical now runs in **mock-first mode** by default (`MOCK_MODE=true`) so judge demos are deterministic and do not depend on live external APIs.
 
 - Open-Meteo integration serves deterministic offline weather values
 - WAQI integration serves deterministic offline AQI values

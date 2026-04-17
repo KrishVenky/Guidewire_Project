@@ -7,11 +7,17 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   try {
-    const raw = localStorage.getItem('rainready-store')
+    let raw = localStorage.getItem('hermetical-store')
+    if (!raw) {
+      // Backward compatibility for users with previous persisted key.
+      raw = localStorage.getItem('hermetical-store')
+      if (raw) localStorage.setItem('hermetical-store', raw)
+    }
     if (raw) {
       const parsed = JSON.parse(raw)
       const state = parsed?.state || {}
-      const token = state.workerToken || state.adminToken
+      // Prefer admin token to avoid 403s when both worker and admin sessions exist.
+      const token = state.adminToken || state.workerToken
       if (token) {
         config.headers = config.headers || {}
         config.headers.Authorization = `Bearer ${token}`
@@ -74,6 +80,7 @@ export const getFinancialSummary = () => api.get('/admin/financial-summary')
 export const getZoneTrustScores = () => api.get('/admin/zone-trust-scores')
 export const getZones = () => api.get('/admin/zones')
 export const getTriggerSources = () => api.get('/admin/trigger-sources')
+export const getPredictiveClaims = () => api.get('/admin/predictive-claims')
 
 // Worker service center
 export const getCommunicationPreferences = (workerId) => api.get(`/workers/${workerId}/communication-preferences`)
